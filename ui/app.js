@@ -170,6 +170,19 @@ const renderInlineMarkdown = (value) => escapeHtml(value)
   .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>")
   .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
 
+const parseMarkdownTableRow = (line) => line
+  .trim()
+  .replace(/^\|/, "")
+  .replace(/\|$/, "")
+  .split(/(?<!\\)\|/)
+  .map((cell) => cell.trim().replaceAll("\\|", "|"));
+
+const isMarkdownTableDivider = (line = "") => {
+  if (!line.includes("|")) return false;
+  const cells = parseMarkdownTableRow(line);
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+};
+
 const renderMarkdown = (markdown = "") => {
   const lines = String(markdown).replaceAll("\r\n", "\n").split("\n");
   const output = [];
@@ -191,7 +204,8 @@ const renderMarkdown = (markdown = "") => {
     listItems = [];
   };
 
-  for (const line of lines) {
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
     if (line.trim().startsWith("```")) {
       flushParagraph();
       flushList();
@@ -204,6 +218,22 @@ const renderMarkdown = (markdown = "") => {
     }
     if (inCodeBlock) {
       codeLines.push(line);
+      continue;
+    }
+
+    if (line.includes("|") && isMarkdownTableDivider(lines[lineIndex + 1])) {
+      flushParagraph();
+      flushList();
+      const headers = parseMarkdownTableRow(line);
+      const rows = [];
+      lineIndex += 2;
+      while (lineIndex < lines.length && lines[lineIndex].trim() && lines[lineIndex].includes("|")) {
+        rows.push(parseMarkdownTableRow(lines[lineIndex]));
+        lineIndex += 1;
+      }
+      lineIndex -= 1;
+      const columnCount = headers.length;
+      output.push(`<div class="markdown-table-wrap"><table><thead><tr>${headers.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${Array.from({ length: columnCount }, (_, index) => `<td>${renderInlineMarkdown(row[index] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
       continue;
     }
 
