@@ -151,5 +151,6 @@ Tôi sẽ bổ sung ablation chạy từng corruption độc lập trên cùng 1
 - [x] Báo cáo không chứa `.env`, API key, token hoặc secret.
 - [x] Báo cáo này không phải bản sao nguyên văn của báo cáo nhóm hoặc báo cáo thành viên khác.
 
-**Họ và tên:** Nguyễn Chí Hiếu  
+**Họ và tên:** Nguyễn Chí Hiếu
+
 **Ngày xác nhận:** 2026-08-06
