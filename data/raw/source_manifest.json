@@ -1,0 +1,11 @@
+{
+  "source": "Crossref REST API",
+  "endpoint": "https://api.crossref.org/works",
+  "request_url": "https://api.crossref.org/works?query=agentic+retrieval+augmented+generation+large+language+model&filter=from-pub-date%3A2026-02-07%2Chas-abstract%3Atrue&rows=24",
+  "query": "agentic retrieval augmented generation large language model",
+  "filter": "from-pub-date:2026-02-07,has-abstract:true",
+  "requested_rows": 24,
+  "received_items": 24,
+  "parsed_records": 24,
+  "fetched_at_utc": "2026-08-06T02:53:02.710601+00:00"
+}

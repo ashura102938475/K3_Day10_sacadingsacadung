@@ -1,0 +1,12 @@
+{
+  "input_records": 24,
+  "output_records": 24,
+  "dropped_records": 0,
+  "drop_reasons": {
+    "missing_paper_id": 0,
+    "missing_title": 0,
+    "missing_summary": 0,
+    "invalid_published": 0,
+    "duplicate_paper_id": 0
+  }
+}
