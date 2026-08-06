@@ -52,6 +52,8 @@ class Settings:
     ollama_base_url: str
     custom_llm_api_key: str | None
     custom_llm_base_url: str | None
+    nvidia_api_key: str | None
+    nvidia_base_url: str
     embedding_model: str
     baseline_collection_name: str
     corrupted_collection_name: str
@@ -119,6 +121,8 @@ def load_settings(project_dir: Path | None = None) -> Settings:
         ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         custom_llm_api_key=os.getenv("CUSTOM_LLM_API_KEY"),
         custom_llm_base_url=os.getenv("CUSTOM_LLM_BASE_URL"),
+        nvidia_api_key=os.getenv("NVIDIA_API_KEY"),
+        nvidia_base_url=os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
         embedding_model=os.getenv(
             "EMBEDDING_MODEL",
             "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
@@ -171,6 +175,10 @@ def require_llm_credentials(settings: Settings) -> None:
         if settings.custom_llm_base_url:
             return
         raise RuntimeError("CUSTOM_LLM_BASE_URL is required when LLM_PROVIDER=custom.")
+    if provider == "nvidia":
+        if settings.nvidia_api_key:
+            return
+        raise RuntimeError("NVIDIA_API_KEY is required when LLM_PROVIDER=nvidia.")
     raise RuntimeError(
-        "Unsupported LLM_PROVIDER. Expected one of: openai, gemini, anthropic, openrouter, ollama, custom."
+        "Unsupported LLM_PROVIDER. Expected one of: openai, gemini, anthropic, openrouter, ollama, custom, nvidia."
     )
