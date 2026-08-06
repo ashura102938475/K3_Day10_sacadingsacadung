@@ -1,0 +1,14 @@
+{
+  "name": "rag-quality-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "fetch:stitch": "node scripts/fetch-stitch.mjs",
+    "dev": "python -m http.server 8000 --directory ..",
+    "check": "node --check app.js && node --check scripts/fetch-stitch.mjs"
+  },
+  "dependencies": {
+    "@google/stitch-sdk": "^0.1.1"
+  }
+}

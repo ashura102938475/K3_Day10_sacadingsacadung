@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="RAG pipeline quality and retrieval evaluation dashboard" />
+    <title>QualiTrace AI · RAG Quality Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <nav class="topbar">
+      <a class="brand" href="#overview"><span class="brand-mark">Q</span>QualiTrace AI</a>
+      <div class="nav-links" aria-label="Dashboard sections">
+        <a class="active" href="#overview">Dashboard</a>
+        <a href="#evaluations">Evaluations</a>
+        <a href="#pipeline">Pipeline</a>
+        <a href="#dataset">Dataset</a>
+      </div>
+      <div class="nav-actions">
+        <label class="global-search">
+          <span aria-hidden="true">⌕</span>
+          <input id="global-search" type="search" placeholder="Search questions…" aria-label="Search questions" />
+        </label>
+        <button class="icon-button" id="theme-toggle" aria-label="Toggle theme">◐</button>
+        <span class="avatar" aria-label="Nguyen Chi Hieu">NH</span>
+      </div>
+    </nav>
+
+    <main>
+      <section class="hero" id="overview">
+        <div>
+          <p class="eyebrow">Evaluation workspace</p>
+          <h1>RAG Data Quality Dashboard</h1>
+          <p class="subtitle">Analyzing retrieval and answer quality across baseline, corrupted, and repaired data states.</p>
+        </div>
+        <div class="runtime-badges">
+          <span class="runtime-badge"><i class="pulse"></i> Jina · 1024d</span>
+          <span class="runtime-badge">Judge · NVIDIA</span>
+        </div>
+      </section>
+
+      <section class="kpi-grid" aria-label="Dataset health summary">
+        <article class="kpi-card">
+          <div class="kpi-label">Total records</div>
+          <div class="kpi-value" id="total-records">—</div>
+          <div class="kpi-meta positive" id="record-meta">Clean corpus</div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-label">Baseline quality</div>
+          <div class="kpi-value" id="quality-rate">—</div>
+          <div class="meter"><span id="quality-meter"></span></div>
+        </article>
+        <article class="kpi-card danger-accent">
+          <div class="kpi-label">Corruption signals</div>
+          <div class="kpi-value danger" id="corruption-signals">—</div>
+          <div class="kpi-meta danger" id="corruption-meta">Detected quality failures</div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-label">Repair recovery</div>
+          <div class="kpi-value" id="repair-rate">—</div>
+          <div class="kpi-meta positive" id="repair-meta">Metrics restored</div>
+        </article>
+      </section>
+
+      <section class="panel" id="evaluations">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">10-question evaluation set</p>
+            <h2>Question Explorer</h2>
+          </div>
+          <div class="question-controls">
+            <span class="question-index" id="question-index">01 / 10</span>
+            <select id="question-select" aria-label="Select evaluation question"></select>
+          </div>
+        </div>
+        <p class="selected-question" id="selected-question">Loading evaluation artifacts…</p>
+        <div class="state-grid" id="state-grid" aria-live="polite"></div>
+      </section>
+
+      <section class="comparison-grid">
+        <article class="panel metric-panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Impact and recovery</p>
+              <h2>Metric comparison</h2>
+            </div>
+            <span class="status-chip success">Same eval set</span>
+          </div>
+          <div id="metric-comparison" class="metric-comparison"></div>
+        </article>
+
+        <article class="panel freshness-panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Data SLA</p>
+              <h2>Freshness monitor</h2>
+            </div>
+            <span class="status-chip" id="freshness-status">—</span>
+          </div>
+          <div class="freshness-summary">
+            <strong id="freshness-age">—</strong>
+            <span>day threshold</span>
+          </div>
+          <dl class="detail-list" id="freshness-details"></dl>
+        </article>
+      </section>
+
+      <section class="panel" id="pipeline">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Observability</p>
+            <h2>Quality gates</h2>
+          </div>
+          <div class="segmented-control" id="quality-tabs" role="tablist">
+            <button class="active" data-state="baseline">Baseline</button>
+            <button data-state="corrupted">Corrupted</button>
+            <button data-state="repaired">Repaired</button>
+          </div>
+        </div>
+        <div class="quality-summary" id="quality-summary"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Check</th><th>Dimension</th><th>Observed</th><th>Expected</th><th>Status</th></tr></thead>
+            <tbody id="quality-table"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="comparison-grid" id="dataset">
+        <article class="panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Deterministic experiment</p>
+              <h2>Corruption log</h2>
+            </div>
+            <span class="status-chip danger" id="corruption-count">—</span>
+          </div>
+          <div class="timeline" id="corruption-timeline"></div>
+        </article>
+
+        <article class="panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Crossref corpus</p>
+              <h2>Dataset sample</h2>
+            </div>
+            <span class="status-chip">24 papers</span>
+          </div>
+          <div class="paper-list" id="paper-list"></div>
+        </article>
+      </section>
+
+      <div class="error-banner" id="error-banner" hidden></div>
+    </main>
+
+    <footer>
+      <span>QualiTrace AI · Day 10 Data Observability Lab</span>
+      <span id="artifact-time">Artifact snapshot</span>
+    </footer>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
