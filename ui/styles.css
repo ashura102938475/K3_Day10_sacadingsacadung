@@ -406,6 +406,10 @@ body.chat-resizing .chat-drawer { transition: none; }
 .chat-state-selector button.active { color: var(--primary); background: var(--primary-soft); border-color: color-mix(in srgb, var(--primary) 25%, transparent); }
 .chat-state-selector button[data-chat-state="corrupted"].active { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 25%, transparent); }
 .chat-state-selector button[data-chat-state="repaired"].active { color: var(--repair); background: var(--repair-soft); border-color: color-mix(in srgb, var(--repair) 25%, transparent); }
+.chat-state-description { margin: 0; padding: 0 16px 9px; color: var(--muted); background: var(--card); border-bottom: 1px solid var(--border); font-size: 10px; line-height: 1.4; }
+.chat-state-description::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 7px; background: var(--primary); border-radius: 50%; vertical-align: 1px; }
+.chat-state-description[data-state="corrupted"]::before { background: var(--danger); }
+.chat-state-description[data-state="repaired"]::before { background: var(--repair); }
 .chat-status { display: flex; align-items: center; gap: 9px; padding: 9px 20px; color: var(--muted); background: var(--surface-low); border-bottom: 1px solid var(--border); font: 500 10px "JetBrains Mono"; }
 .chat-status.offline .pulse { background: var(--danger); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 15%, transparent); }
 .chat-messages { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 20px; overflow-y: auto; }

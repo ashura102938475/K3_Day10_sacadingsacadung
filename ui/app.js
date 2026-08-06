@@ -46,6 +46,12 @@ const stateLabels = {
   repaired: "Dữ liệu đã sửa",
 };
 
+const chatStateDescriptions = {
+  baseline: "Truy vấn index dữ liệu sạch trước khi gây lỗi.",
+  corrupted: "Truy vấn index chứa corruption để quan sát mức suy giảm.",
+  repaired: "Truy vấn index sau khi sửa có mục tiêu từ dữ liệu tốt.",
+};
+
 const questionTypeLabels = {
   summary: "tóm tắt",
   authors: "tác giả",
@@ -585,6 +591,7 @@ const setupChat = () => {
   const status = document.querySelector("#chat-status-text");
   const statusRow = status.parentElement;
   const stateSelector = document.querySelector("#chat-state-selector");
+  const stateDescription = document.querySelector("#chat-state-description");
   const history = [];
   let chatDataState = "baseline";
   const minimumWidth = 340;
@@ -669,8 +676,8 @@ const setupChat = () => {
     chatDataState = button.dataset.chatState;
     stateSelector.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
     history.length = 0;
-    addMessage("assistant", `Đã chuyển sang chế độ **${stateLabels[chatDataState]}**. Lịch sử hội thoại được đặt lại để kết quả không bị lẫn giữa các trạng thái dữ liệu.`);
-    status.textContent = `Đang dùng collection ${chatDataState}`;
+    stateDescription.dataset.state = chatDataState;
+    stateDescription.textContent = chatStateDescriptions[chatDataState];
   });
 
   const checkHealth = async () => {
@@ -708,7 +715,7 @@ const setupChat = () => {
       loading.remove();
       addMessage("assistant", payload.answer, payload.sources, payload.mode);
       history.push({ role: "assistant", content: payload.answer });
-      status.textContent = `${stateLabels[payload.data_state]} · ${payload.model} · ${payload.mode.replaceAll("_", " ")}`;
+      status.textContent = `${payload.model} · ${payload.mode.replaceAll("_", " ")}`;
       statusRow.classList.remove("offline");
     } catch (error) {
       loading.remove();
