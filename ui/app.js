@@ -1,5 +1,17 @@
 const DATA_ROOT = "../data";
 const CHAT_API = "http://127.0.0.1:8001";
+const PAGE_VIEW = new URLSearchParams(window.location.search).get("view") === "presentation"
+  ? "presentation"
+  : "dashboard";
+
+document.body.classList.toggle("presentation-mode", PAGE_VIEW === "presentation");
+const activeHash = window.location.hash || "#overview";
+document.querySelectorAll("[data-nav-view]").forEach((link) => {
+  const isActive = PAGE_VIEW === "presentation"
+    ? link.dataset.navView === "presentation"
+    : link.dataset.navView === "dashboard" && link.getAttribute("href").endsWith(activeHash);
+  link.classList.toggle("active", isActive);
+});
 
 const artifactPaths = {
   metrics: {
@@ -28,14 +40,62 @@ const artifactPaths = {
 };
 
 const stateLabels = {
-  baseline: "Baseline",
-  corrupted: "Corrupted",
-  repaired: "Repaired",
+  baseline: "Dữ liệu gốc",
+  corrupted: "Dữ liệu lỗi",
+  repaired: "Dữ liệu đã sửa",
 };
+
+const questionTypeLabels = {
+  summary: "tóm tắt",
+  authors: "tác giả",
+  date: "ngày xuất bản",
+  categories: "danh mục",
+};
+
+const corruptionLabels = {
+  drop_latest_records: ["Loại bản ghi mới nhất", "Loại hai bản ghi mới nhất để mô phỏng mất độ tươi mới."],
+  blank_summary: ["Xóa nội dung tóm tắt", "Đặt summary thành rỗng trên hai dòng để phá completeness."],
+  inject_noise: ["Chèn token nhiễu", "Chèn token nhiễu vào text_for_embedding trên hai dòng."],
+  truncate_title: ["Cắt ngắn tiêu đề", "Cắt title còn khoảng một phần ba độ dài trên hai dòng."],
+  age_published_dates: ["Làm cũ ngày xuất bản", "Lùi ngày xuất bản 365 ngày trên hai dòng."],
+  duplicate_rows: ["Nhân bản dòng", "Nhân bản hai dòng để phá tính duy nhất của paper_id."],
+};
+
+const qualityCheckLabels = {
+  row_count: "Số lượng dòng",
+  paper_id_not_null: "paper_id không null",
+  paper_id_unique: "paper_id duy nhất",
+  title_not_blank: "Title không rỗng",
+  title_not_truncated: "Title không bị cắt",
+  summary_min_length: "Summary đủ độ dài",
+  summary_chars_matches_summary: "summary_chars khớp summary",
+  age_days_non_negative: "age_days không âm",
+  text_for_embedding_not_empty: "Embedding text không rỗng",
+  text_for_embedding_matches_source_fields: "Embedding text khớp trường nguồn",
+  text_for_embedding_has_no_noise_tokens: "Embedding text không có token nhiễu",
+};
+
+const translateQualityText = (value) => String(value)
+  .replaceAll("noisy row(s)", "dòng có nhiễu")
+  .replaceAll("noisy rows", "dòng có nhiễu")
+  .replaceAll("rows", "dòng")
+  .replaceAll("row(s)", "dòng")
+  .replaceAll("null(s)", "giá trị null")
+  .replaceAll("nulls", "giá trị null")
+  .replaceAll("duplicate(s)", "bản ghi trùng")
+  .replaceAll("duplicates", "bản ghi trùng")
+  .replaceAll("blank(s)", "giá trị rỗng")
+  .replaceAll("blanks", "giá trị rỗng")
+  .replaceAll("truncated title(s)", "title bị cắt")
+  .replaceAll("truncated titles", "title bị cắt")
+  .replaceAll("mismatch(es)", "giá trị không khớp")
+  .replaceAll("mismatches", "giá trị không khớp")
+  .replaceAll("empty(s)", "giá trị rỗng")
+  .replaceAll("empty", "rỗng");
 
 const fetchJson = async (path) => {
   const response = await fetch(path);
-  if (!response.ok) throw new Error(`${path} returned HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`${path} trả về mã HTTP ${response.status}`);
   return response.json();
 };
 
@@ -155,14 +215,14 @@ const renderKpis = (data) => {
   const repairRate = recovered / recoveryMetrics.length;
 
   document.querySelector("#total-records").textContent = data.papers.length.toLocaleString();
-  document.querySelector("#record-meta").textContent = `${data.manifest.documents.length} vectors · ${data.manifest.embedding_dimension} dimensions`;
+  document.querySelector("#record-meta").textContent = `${data.manifest.documents.length} vector · ${data.manifest.embedding_dimension} chiều`;
   const qualityRate = baselineQuality.passed / baselineQuality.total_checks;
   document.querySelector("#quality-rate").textContent = percent(qualityRate);
   document.querySelector("#quality-meter").style.width = percent(qualityRate);
   document.querySelector("#corruption-signals").textContent = corruptedQuality.failed;
-  document.querySelector("#corruption-meta").textContent = `${data.corruptionLog.entries.length} scenarios · ${corruptedQuality.total_checks} gates`;
+  document.querySelector("#corruption-meta").textContent = `${data.corruptionLog.entries.length} kịch bản · ${corruptedQuality.total_checks} cổng kiểm tra`;
   document.querySelector("#repair-rate").textContent = percent(repairRate);
-  document.querySelector("#repair-meta").textContent = `${data.quality.repaired.summary.passed}/${data.quality.repaired.summary.total_checks} quality gates pass`;
+  document.querySelector("#repair-meta").textContent = `${data.quality.repaired.summary.passed}/${data.quality.repaired.summary.total_checks} cổng chất lượng đạt`;
 };
 
 const renderQuestion = (data, index) => {
@@ -178,15 +238,15 @@ const renderQuestion = (data, index) => {
       <article class="state-card ${state}">
         <div class="state-header">
           <span class="state-name"><i class="state-dot"></i>${stateLabels[state]}</span>
-          <span class="status-chip ${item.retrieval_hit ? "success" : "danger"}">${item.retrieval_hit ? "Hit" : "Miss"}</span>
+          <span class="status-chip ${item.retrieval_hit ? "success" : "danger"}">${item.retrieval_hit ? "Trúng" : "Trượt"}</span>
         </div>
         <p class="state-answer">${escapeHtml(item.answer)}</p>
         <div class="state-footer">
-          <div class="retrieval-line">${item.retrieved_doc_ids.length} papers · ${escapeHtml(item.retrieved_doc_ids[0] || "No result")}</div>
+          <div class="retrieval-line">${item.retrieved_doc_ids.length} bài báo · ${escapeHtml(item.retrieved_doc_ids[0] || "Không có kết quả")}</div>
           <div class="mini-metrics">
             <div class="mini-metric"><span>Token F1</span><strong>${item.token_f1.toFixed(2)}</strong></div>
-            <div class="mini-metric"><span>Judge</span><strong>${score}/5</strong></div>
-            <div class="mini-metric"><span>Backend</span><strong>${escapeHtml(item.judge_backend.replace("llm:", ""))}</strong></div>
+            <div class="mini-metric"><span>Giám khảo</span><strong>${score}/5</strong></div>
+            <div class="mini-metric"><span>Nền tảng</span><strong>${escapeHtml(item.judge_backend.replace("llm:", ""))}</strong></div>
           </div>
         </div>
       </article>`;
@@ -196,7 +256,7 @@ const renderQuestion = (data, index) => {
 const setupQuestions = (data) => {
   const select = document.querySelector("#question-select");
   select.innerHTML = data.answers.baseline.map((item, index) =>
-    `<option value="${index}">${escapeHtml(item.id)} · ${escapeHtml(item.question_type)}</option>`
+    `<option value="${index}">${escapeHtml(item.id)} · ${escapeHtml(questionTypeLabels[item.question_type] || item.question_type)}</option>`
   ).join("");
   select.addEventListener("change", () => renderQuestion(data, Number(select.value)));
 
@@ -218,10 +278,10 @@ const setupQuestions = (data) => {
 
 const renderMetrics = (data) => {
   const metrics = [
-    ["Retrieval hit", "retrieval_hit_rate"],
+    ["Tỷ lệ retrieval trúng", "retrieval_hit_rate"],
     ["Token F1", "mean_token_f1"],
-    ["Judge accuracy", "judge_accuracy"],
-    ["Judge score", "mean_judge_score", 5],
+    ["Độ chính xác giám khảo", "judge_accuracy"],
+    ["Điểm giám khảo", "mean_judge_score", 5],
   ];
   document.querySelector("#metric-comparison").innerHTML = metrics.map(([label, key, maximum = 1]) => {
     const rows = ["baseline", "corrupted", "repaired"].map((state) => {
@@ -232,9 +292,9 @@ const renderMetrics = (data) => {
     return `<div class="metric-row"><span class="metric-label">${label}</span><div class="bar-stack">${rows}</div><span class="metric-value">${key === "mean_judge_score" ? repairedValue.toFixed(1) : percent(repairedValue)}</span></div>`;
   }).join("") + `
     <div class="bar-legend">
-      <span><i style="background:var(--success)"></i>Baseline</span>
-      <span><i style="background:var(--danger)"></i>Corrupted</span>
-      <span><i style="background:var(--repair)"></i>Repaired</span>
+      <span><i style="background:var(--success)"></i>Gốc</span>
+      <span><i style="background:var(--danger)"></i>Bị lỗi</span>
+      <span><i style="background:var(--repair)"></i>Đã sửa</span>
     </div>`;
 };
 
@@ -242,29 +302,29 @@ const renderFreshness = (data) => {
   const current = data.freshness.repaired;
   const corrupted = data.freshness.corrupted;
   const status = document.querySelector("#freshness-status");
-  status.textContent = current.is_fresh ? "Healthy" : "Stale";
+  status.textContent = current.is_fresh ? "Tốt" : "Quá hạn";
   status.classList.add(current.is_fresh ? "success" : "danger");
   document.querySelector("#freshness-age").textContent = current.threshold_days;
   document.querySelector("#freshness-details").innerHTML = `
-    <div><dt>Latest publication</dt><dd>${escapeHtml(current.latest_published)}</dd></div>
-    <div><dt>Oldest publication</dt><dd>${escapeHtml(current.oldest_published)}</dd></div>
-    <div><dt>Corrupted stale rows</dt><dd>${corrupted.stale_rows}</dd></div>
-    <div><dt>Repaired stale rows</dt><dd>${current.stale_rows}</dd></div>`;
-  document.querySelector("#artifact-time").textContent = `Snapshot · ${new Date(current.generated_at_utc).toLocaleString()}`;
+    <div><dt>Bài mới nhất</dt><dd>${escapeHtml(current.latest_published)}</dd></div>
+    <div><dt>Bài cũ nhất</dt><dd>${escapeHtml(current.oldest_published)}</dd></div>
+    <div><dt>Dòng quá hạn trong dữ liệu lỗi</dt><dd>${corrupted.stale_rows}</dd></div>
+    <div><dt>Dòng quá hạn sau khi sửa</dt><dd>${current.stale_rows}</dd></div>`;
+  document.querySelector("#artifact-time").textContent = `Ảnh chụp · ${new Date(current.generated_at_utc).toLocaleString("vi-VN")}`;
 };
 
 const renderQuality = (data, state) => {
   const report = data.quality[state];
   document.querySelector("#quality-summary").innerHTML = `
     <span class="quality-score">${report.summary.passed}/${report.summary.total_checks}</span>
-    <span>${stateLabels[state]} checks passed · ${report.summary.failed} failure${report.summary.failed === 1 ? "" : "s"}</span>`;
+    <span>${stateLabels[state]}: kiểm tra đạt · ${report.summary.failed} lỗi</span>`;
   document.querySelector("#quality-table").innerHTML = report.checks.map((check) => `
     <tr>
-      <td>${escapeHtml(check.check)}</td>
-      <td>${escapeHtml(check.quality_dimension)}</td>
-      <td>${escapeHtml(check.observed)}</td>
-      <td>${escapeHtml(check.expected)}</td>
-      <td><span class="check-status ${check.passed ? "pass" : "fail"}">${check.passed ? "PASS" : "FAIL"}</span></td>
+      <td>${escapeHtml(qualityCheckLabels[check.check] || check.check)}</td>
+      <td>${escapeHtml({ Completeness: "Đầy đủ", Uniqueness: "Duy nhất", Validity: "Hợp lệ", Consistency: "Nhất quán" }[check.quality_dimension] || check.quality_dimension)}</td>
+      <td>${escapeHtml(translateQualityText(check.observed))}</td>
+      <td>${escapeHtml(translateQualityText(check.expected))}</td>
+      <td><span class="check-status ${check.passed ? "pass" : "fail"}">${check.passed ? "ĐẠT" : "LỖI"}</span></td>
     </tr>`).join("");
 };
 
@@ -279,11 +339,11 @@ const setupQualityTabs = (data) => {
 };
 
 const renderCorruptionLog = (data) => {
-  document.querySelector("#corruption-count").textContent = `${data.corruptionLog.entries.length} scenarios`;
+  document.querySelector("#corruption-count").textContent = `${data.corruptionLog.entries.length} kịch bản`;
   document.querySelector("#corruption-timeline").innerHTML = data.corruptionLog.entries.map((entry) => `
     <div class="timeline-item">
-      <div class="timeline-title"><span>${escapeHtml(entry.corruption)}</span><span>×${entry.count}</span></div>
-      <p class="timeline-description">${escapeHtml(entry.description)}</p>
+      <div class="timeline-title"><span>${escapeHtml(corruptionLabels[entry.corruption]?.[0] || entry.corruption)}</span><span>×${entry.count}</span></div>
+      <p class="timeline-description">${escapeHtml(corruptionLabels[entry.corruption]?.[1] || entry.description)}</p>
     </div>`).join("");
 };
 
@@ -293,6 +353,186 @@ const renderPapers = (data) => {
       <a href="${escapeHtml(paper.abs_url)}" target="_blank" rel="noreferrer">${escapeHtml(paper.title)}</a>
       <div class="paper-meta">${escapeHtml(paper.paper_id)} · ${escapeHtml(paper.published)} · ${escapeHtml(paper.primary_category)}</div>
     </div>`).join("");
+};
+
+const setupPresentation = (data) => {
+  const questionTypes = data.answers.baseline.reduce((counts, item) => {
+    counts[item.question_type] = (counts[item.question_type] || 0) + 1;
+    return counts;
+  }, {});
+  const metricValue = (state, key, asScore = false) => asScore
+    ? data.metrics[state][key].toFixed(1)
+    : percent(data.metrics[state][key], 1);
+  const corruptionCards = data.corruptionLog.entries.map((entry) => `
+    <div class="slide-card">
+      <span class="slide-number">×${entry.count}</span>
+      <strong>${escapeHtml(corruptionLabels[entry.corruption]?.[0] || entry.corruption.replaceAll("_", " "))}</strong>
+      <p>${escapeHtml(corruptionLabels[entry.corruption]?.[1] || entry.description)}</p>
+    </div>`).join("");
+
+  const slides = [
+    {
+      kicker: "Ngày 10 · Data pipeline và observability",
+      title: "Từ dữ liệu khoa học thô đến hệ thống RAG có thể quan sát",
+      lead: "Một pipeline có thể tái lập để thu thập, làm sạch, embedding, đánh giá, gây lỗi, sửa chữa và chứng minh chất lượng retrieval bằng bằng chứng.",
+      body: `<div class="slide-grid">
+        <div class="slide-card"><span class="slide-number">${data.papers.length}</span><strong>Bài báo sạch</strong><p>Các bản ghi Crossref còn lại sau data contract bắt buộc.</p></div>
+        <div class="slide-card"><span class="slide-number">${percent(data.metrics.baseline.retrieval_hit_rate)}</span><strong>Tỷ lệ truy xuất trúng ban đầu</strong><p>Đo trên cùng bộ đánh giá đa dạng gồm 10 câu hỏi.</p></div>
+        <div class="slide-card"><span class="slide-number">${data.quality.repaired.summary.passed}/${data.quality.repaired.summary.total_checks}</span><strong>Cổng đã phục hồi</strong><p>Mọi kiểm tra chất lượng đều đạt lại sau quá trình sửa xác định.</p></div>
+      </div>`,
+      note: "Mở đầu bằng kết quả: nhóm đã xây dựng một thí nghiệm hoàn chỉnh, không chỉ là demo retrieval.",
+    },
+    {
+      kicker: "01 · Nền tảng dữ liệu",
+      title: "Thu thập Crossref và data contract làm sạch nghiêm ngặt",
+      lead: "Pipeline lưu snapshot phản hồi thô, parse bản ghi rồi tạo artifact CSV và JSON ổn định cho mọi bước phía sau.",
+      body: `<div class="slide-grid">
+        <div class="slide-card"><span class="slide-number">01</span><strong>Lọc dòng không sử dụng được</strong><p>Yêu cầu title, ngày xuất bản hợp lệ và summary dài tối thiểu 100 ký tự.</p></div>
+        <div class="slide-card"><span class="slide-number">02</span><strong>Chuẩn hóa các trường</strong><p>Loại XML/HTML, nối authors và categories, chuẩn hóa ngày, tính age_days.</p></div>
+        <div class="slide-card"><span class="slide-number">03</span><strong>Tạo văn bản ngữ nghĩa</strong><p>Title + authors + summary trở thành trường text_for_embedding xác định.</p></div>
+      </div>`,
+      note: "Nhấn mạnh dữ liệu raw không bị chỉnh sửa; artifact clean được dẫn xuất và có thể tái lập.",
+    },
+    {
+      kicker: "02 · Hệ thống end-to-end",
+      title: "Một luồng có thể truy vết từ nguồn đến câu trả lời",
+      lead: "Mỗi bước đều lưu artifact, nhờ đó lỗi có thể quan sát và phép so sánh có thể lặp lại.",
+      body: `<div class="pipeline-flow">
+        <div class="flow-node"><i>1</i><strong>Crossref</strong><span>24 bản ghi raw</span></div>
+        <div class="flow-node"><i>2</i><strong>Làm sạch</strong><span>kiểm tra contract</span></div>
+        <div class="flow-node"><i>3</i><strong>Jina</strong><span>vector 1024 chiều</span></div>
+        <div class="flow-node"><i>4</i><strong>Chroma</strong><span>retrieval cosine</span></div>
+        <div class="flow-node"><i>5</i><strong>NVIDIA</strong><span>trả lời có căn cứ</span></div>
+        <div class="flow-node"><i>6</i><strong>Đánh giá</strong><span>metric + báo cáo</span></div>
+      </div>`,
+      note: "Đi từ trái sang phải và chỉ ra mỗi mũi tên đều có artifact đã commit hoặc đầu ra đo được.",
+    },
+    {
+      kicker: "03 · Lớp retrieval",
+      title: "Jina embedding với các Chroma collection độc lập",
+      lead: "Cùng một mô hình embedding được dùng cho đoạn văn và truy vấn, trong khi ba trạng thái dữ liệu được cách ly.",
+      body: `<div class="slide-grid">
+        <div class="slide-card"><span class="slide-number">1024d</span><strong>${escapeHtml(data.manifest.embedding_model)}</strong><p>Embedding passage/query theo đúng task từ Jina.</p></div>
+        <div class="slide-card"><span class="slide-number">3</span><strong>Bộ sưu tập độc lập</strong><p>Ba collection Chroma riêng biệt ngăn rò rỉ trạng thái dữ liệu.</p></div>
+        <div class="slide-card"><span class="slide-number">Top 4</span><strong>Truy xuất bằng chứng</strong><p>Lưu paper, ID, title, context và score được xếp hạng cosine để đánh giá.</p></div>
+      </div>`,
+      note: "Nêu rõ thành viên nhóm có thể query Chroma artifact đã commit; chỉ khi rebuild mới cần Jina key.",
+    },
+    {
+      kicker: "04 · Thiết kế đánh giá",
+      title: "Mười câu hỏi kiểm thử nhiều dạng retrieval",
+      lead: "Mỗi câu đều có ground-truth answer và document ID, cho phép đo cả retrieval lẫn chất lượng câu trả lời.",
+      body: `<div class="slide-grid two">
+        <div class="slide-card"><span class="slide-number">${data.answers.baseline.length}</span><strong>Câu hỏi đa dạng</strong><p>${Object.entries(questionTypes).map(([type, count]) => `${count} ${escapeHtml(questionTypeLabels[type] || type)}`).join(" · ")}.</p></div>
+        <div class="slide-card"><span class="slide-number">4</span><strong>Tín hiệu cốt lõi</strong><p>Retrieval hit rate, token F1, độ chính xác và điểm của NVIDIA judge.</p></div>
+        <div class="slide-card"><span class="slide-number">Cùng bộ</span><strong>So sánh công bằng</strong><p>Ba trạng thái dữ liệu trả lời cùng một tập câu hỏi.</p></div>
+        <div class="slide-card"><span class="slide-number">Nguồn</span><strong>Câu trả lời kiểm toán được</strong><p>DOI, ngữ cảnh, điểm, nền tảng chấm và lập luận đều được lưu.</p></div>
+      </div>`,
+      note: "Giải thích vì sao phải dùng cùng bộ eval: chỉ trạng thái dữ liệu thay đổi.",
+    },
+    {
+      kicker: "05 · Thí nghiệm khả năng quan sát",
+      title: "Corruption có kiểm soát làm suy giảm chất lượng một cách nhìn thấy được",
+      lead: "Sáu kịch bản xác định tác động completeness, validity, uniqueness, consistency và freshness trước khi snapshot raw phục hồi dữ liệu.",
+      body: `<div class="slide-grid">${corruptionCards}</div>`,
+      note: "Không mô tả corruption là lỗi ngẫu nhiên; nó có seed và log để thí nghiệm có thể tái lập.",
+    },
+    {
+      kicker: "06 · Quy trình phục hồi",
+      title: "Không vá dữ liệu lỗi: tái tạo từ nguồn thô đáng tin cậy",
+      lead: "Pipeline coi dữ liệu Crossref thô là nguồn chuẩn bất biến, sau đó tái tạo toàn bộ artifact phía sau để loại bỏ cả lỗi nhìn thấy lẫn lỗi tiềm ẩn.",
+      body: `<div class="pipeline-flow repair-flow">
+        <div class="flow-node"><i>1</i><strong>Phát hiện lỗi</strong><span>cổng chất lượng + độ tươi mới</span></div>
+        <div class="flow-node"><i>2</i><strong>Nạp lại nguồn thô</strong><span>crossref_records.json</span></div>
+        <div class="flow-node"><i>3</i><strong>Làm sạch lại</strong><span>cùng data contract</span></div>
+        <div class="flow-node"><i>4</i><strong>Tạo lại chỉ mục</strong><span>Jina + Chroma repaired</span></div>
+        <div class="flow-node"><i>5</i><strong>Xác nhận phục hồi</strong><span>quality + freshness + eval</span></div>
+      </div>
+      <div class="takeaway"><strong>Điều kiện hoàn tất</strong><span>11/11 cổng đạt, 0 dòng quá hạn và các chỉ số đánh giá trở về mức dữ liệu gốc.</span></div>`,
+      note: "Nhấn mạnh hàm _repair_from_raw không sửa từng ô của dữ liệu lỗi. Nó nạp lại raw, chạy build_clean_dataframe, tạo embedding/index mới rồi đánh giá lại độc lập.",
+    },
+    {
+      kicker: "07 · Kết quả đo lường",
+      title: "Dữ liệu lỗi làm giảm truy xuất; quá trình sửa phục hồi kết quả",
+      lead: "Cổng chất lượng và chỉ số câu trả lời cùng biến đổi, chứng minh khả năng quan sát dữ liệu ảnh hưởng trực tiếp đến hành vi RAG.",
+      body: `<table class="slide-metric-table">
+        <thead><tr><th>Tín hiệu</th><th>Dữ liệu gốc</th><th>Dữ liệu lỗi</th><th>Đã sửa</th></tr></thead>
+        <tbody>
+          <tr><td>Tỷ lệ retrieval trúng</td><td>${metricValue("baseline", "retrieval_hit_rate")}</td><td class="result-down">${metricValue("corrupted", "retrieval_hit_rate")}</td><td class="result-up">${metricValue("repaired", "retrieval_hit_rate")}</td></tr>
+          <tr><td>Token F1 trung bình</td><td>${metricValue("baseline", "mean_token_f1")}</td><td class="result-down">${metricValue("corrupted", "mean_token_f1")}</td><td class="result-up">${metricValue("repaired", "mean_token_f1")}</td></tr>
+          <tr><td>Độ chính xác judge</td><td>${metricValue("baseline", "judge_accuracy")}</td><td class="result-down">${metricValue("corrupted", "judge_accuracy")}</td><td class="result-up">${metricValue("repaired", "judge_accuracy")}</td></tr>
+          <tr><td>Điểm judge trung bình</td><td>${metricValue("baseline", "mean_judge_score", true)}/5</td><td class="result-down">${metricValue("corrupted", "mean_judge_score", true)}/5</td><td class="result-up">${metricValue("repaired", "mean_judge_score", true)}/5</td></tr>
+          <tr><td>Cổng chất lượng đạt</td><td>${data.quality.baseline.summary.passed}/${data.quality.baseline.summary.total_checks}</td><td class="result-down">${data.quality.corrupted.summary.passed}/${data.quality.corrupted.summary.total_checks}</td><td class="result-up">${data.quality.repaired.summary.passed}/${data.quality.repaired.summary.total_checks}</td></tr>
+        </tbody>
+      </table>
+      <div class="takeaway"><strong>Kết luận chính</strong><span>Quá trình sửa đưa toàn bộ chỉ số cốt lõi và 11 cổng chất lượng trở lại mức ban đầu.</span></div>`,
+      note: "Dừng ở cột dữ liệu lỗi: tỷ lệ truy xuất trúng giảm còn 80% và bốn cổng chất lượng lỗi, sau đó đều phục hồi.",
+    },
+    {
+      kicker: "08 · Demo và kết luận",
+      title: "Dashboard biến artifact thành câu chuyện sẵn sàng để nhóm trình bày",
+      lead: "Demo kết hợp bằng chứng thí nghiệm với chatbot RAG trực tiếp mà không đưa API key ra trình duyệt.",
+      body: `<div class="slide-grid">
+        <div class="slide-card"><span class="slide-number">Quan sát</span><strong>So sánh trạng thái</strong><p>Khám phá KPI, câu trả lời từng câu, freshness, quality gate và corruption log.</p></div>
+        <div class="slide-card"><span class="slide-number">Hỏi</span><strong>Chat với kho dữ liệu</strong><p>Jina query → bằng chứng Chroma → NVIDIA trả lời kèm DOI và score.</p></div>
+        <div class="slide-card"><span class="slide-number">Cải tiến</span><strong>Vòng lặp tiếp theo</strong><p>Thêm Ragas, nguồn dữ liệu mới, telemetry latency/chi phí và giám sát liên tục.</p></div>
+      </div>
+      <div class="takeaway"><strong>Kết luận</strong><span>RAG đáng tin cậy cần chất lượng dữ liệu đo được, đánh giá tái lập và câu trả lời có bằng chứng.</span></div>`,
+      note: "Kết thúc bằng cách mở Hỏi kho dữ liệu, chạy một câu trực tiếp rồi mời lớp đặt câu hỏi.",
+    },
+  ];
+
+  const container = document.querySelector("#presentation-slides");
+  const dots = document.querySelector("#slide-dots");
+  const currentLabel = document.querySelector("#slide-current");
+  const totalLabel = document.querySelector("#slide-total");
+  const progress = document.querySelector("#deck-progress-bar");
+  const note = document.querySelector("#speaker-note");
+  const deck = document.querySelector("#slide-deck");
+  const prev = document.querySelector("#slide-prev");
+  const next = document.querySelector("#slide-next");
+  let current = 0;
+
+  container.innerHTML = slides.map((slide, index) => `
+    <article class="presentation-slide ${index === 0 ? "active" : ""}" data-slide="${index}">
+      <p class="slide-kicker">${slide.kicker}</p>
+      <h3>${slide.title}</h3>
+      <p class="slide-lead">${slide.lead}</p>
+      ${slide.body}
+    </article>`).join("");
+  dots.innerHTML = slides.map((_, index) => `<button class="slide-dot ${index === 0 ? "active" : ""}" data-slide-target="${index}" aria-label="Đi đến trang trình chiếu ${index + 1}"></button>`).join("");
+  totalLabel.textContent = String(slides.length).padStart(2, "0");
+
+  const showSlide = (index) => {
+    current = Math.max(0, Math.min(index, slides.length - 1));
+    container.querySelectorAll(".presentation-slide").forEach((element, slideIndex) => element.classList.toggle("active", slideIndex === current));
+    dots.querySelectorAll(".slide-dot").forEach((element, slideIndex) => element.classList.toggle("active", slideIndex === current));
+    currentLabel.textContent = String(current + 1).padStart(2, "0");
+    progress.style.width = `${((current + 1) / slides.length) * 100}%`;
+    note.textContent = slides[current].note;
+    prev.disabled = current === 0;
+    next.disabled = current === slides.length - 1;
+  };
+
+  prev.addEventListener("click", () => showSlide(current - 1));
+  next.addEventListener("click", () => showSlide(current + 1));
+  dots.addEventListener("click", (event) => {
+    const target = event.target.closest("[data-slide-target]");
+    if (target) showSlide(Number(target.dataset.slideTarget));
+  });
+  document.querySelector("#presentation-fullscreen").addEventListener("click", async () => {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await deck.requestFullscreen();
+  });
+  document.addEventListener("keydown", (event) => {
+    const visible = document.fullscreenElement === deck || document.querySelector("#presentation").getBoundingClientRect().top < window.innerHeight;
+    if (!visible || ["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+    if (event.key === "ArrowRight" || event.key === "PageDown") showSlide(current + 1);
+    if (event.key === "ArrowLeft" || event.key === "PageUp") showSlide(current - 1);
+  });
+  const requestedSlide = Number(new URLSearchParams(window.location.search).get("slide"));
+  showSlide(Number.isInteger(requestedSlide) && requestedSlide > 0 ? requestedSlide - 1 : 0);
+
 };
 
 const setupTheme = () => {
@@ -313,7 +553,9 @@ const setupChat = () => {
   const messages = document.querySelector("#chat-messages");
   const status = document.querySelector("#chat-status-text");
   const statusRow = status.parentElement;
+  const stateSelector = document.querySelector("#chat-state-selector");
   const history = [];
+  let chatDataState = "baseline";
   const minimumWidth = 340;
   const defaultWidth = 460;
 
@@ -377,11 +619,11 @@ const setupChat = () => {
     article.className = `chat-message ${role}`;
     const sourceHtml = sources.length ? `<div class="chat-sources">${sources.slice(0, 3).map((source, index) => `
       <a class="chat-source" href="${escapeHtml(source.url || "#")}" target="_blank" rel="noreferrer">
-        <strong>[${index + 1}] ${escapeHtml(source.title)}</strong>
-        <span>${escapeHtml(source.paper_id)} · score ${Number(source.score).toFixed(3)}</span>
+        <strong>[Nguồn ${index + 1}] ${escapeHtml(source.title)}</strong>
+        <span>${escapeHtml(source.paper_id)} · điểm ${Number(source.score).toFixed(3)}</span>
       </a>`).join("")}</div>` : "";
     article.innerHTML = `
-      <div class="message-role">${role === "user" ? "You" : "QualiTrace"}</div>
+      <div class="message-role">${role === "user" ? "Bạn" : "QualiTrace"}</div>
       <div class="message-content">${renderMarkdown(content)}</div>
       ${sourceHtml}
       ${mode ? `<span class="chat-mode">${escapeHtml(mode.replaceAll("_", " "))}</span>` : ""}`;
@@ -390,15 +632,25 @@ const setupChat = () => {
     return article;
   };
 
+  stateSelector.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-chat-state]");
+    if (!button || button.dataset.chatState === chatDataState) return;
+    chatDataState = button.dataset.chatState;
+    stateSelector.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
+    history.length = 0;
+    addMessage("assistant", `Đã chuyển sang chế độ **${stateLabels[chatDataState]}**. Lịch sử hội thoại được đặt lại để kết quả không bị lẫn giữa các trạng thái dữ liệu.`);
+    status.textContent = `Đang dùng collection ${chatDataState}`;
+  });
+
   const checkHealth = async () => {
     try {
       const response = await fetch(`${CHAT_API}/api/health`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const health = await response.json();
-      status.textContent = `${health.embedding_provider} retrieval · ${health.llm_provider} LLM · ready`;
+      status.textContent = `${health.embedding_provider} retrieval · ${health.llm_provider} LLM · sẵn sàng`;
       statusRow.classList.remove("offline");
     } catch {
-      status.textContent = "Chat API offline · start backend on port 8001";
+      status.textContent = "Chat API đang tắt · hãy mở backend ở cổng 8001";
       statusRow.classList.add("offline");
     }
   };
@@ -412,24 +664,24 @@ const setupChat = () => {
     history.push({ role: "user", content: message });
     input.value = "";
     submit.disabled = true;
-    const loading = addMessage("assistant", "Retrieving evidence and composing an answer…");
+    const loading = addMessage("assistant", `Đang truy xuất bằng chứng từ **${stateLabels[chatDataState]}** và tạo câu trả lời…`);
     loading.classList.add("loading");
     try {
       const response = await fetch(`${CHAT_API}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history: priorHistory, top_k: 4 }),
+        body: JSON.stringify({ message, history: priorHistory, top_k: 4, data_state: chatDataState }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
       loading.remove();
       addMessage("assistant", payload.answer, payload.sources, payload.mode);
       history.push({ role: "assistant", content: payload.answer });
-      status.textContent = `${payload.model} · ${payload.mode.replaceAll("_", " ")}`;
+      status.textContent = `${stateLabels[payload.data_state]} · ${payload.model} · ${payload.mode.replaceAll("_", " ")}`;
       statusRow.classList.remove("offline");
     } catch (error) {
       loading.remove();
-      addMessage("assistant", `Chat request failed: ${error.message}`);
+      addMessage("assistant", `Yêu cầu chat thất bại: ${error.message}`);
       statusRow.classList.add("offline");
     } finally {
       submit.disabled = false;
@@ -456,11 +708,12 @@ try {
   setupQualityTabs(data);
   renderCorruptionLog(data);
   renderPapers(data);
+  setupPresentation(data);
   setupTheme();
   setupChat();
 } catch (error) {
   const banner = document.querySelector("#error-banner");
   banner.hidden = false;
-  banner.textContent = `Unable to load dashboard artifacts: ${error.message}. Start the demo from the repository root or run npm run dev inside ui/.`;
+  banner.textContent = `Không thể tải artifact cho dashboard: ${error.message}. Hãy chạy demo từ thư mục gốc hoặc dùng npm run dev trong ui/.`;
   console.error(error);
 }

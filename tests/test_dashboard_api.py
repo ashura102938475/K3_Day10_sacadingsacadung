@@ -30,7 +30,7 @@ def test_chat_returns_grounded_retrieval_fallback(monkeypatch):
         settings=replace(settings, model_name="test-model"),
         index=_FakeIndex(),
     )
-    monkeypatch.setattr(dashboard, "get_runtime", lambda: runtime)
+    monkeypatch.setattr(dashboard, "get_runtime", lambda data_state="baseline": runtime)
     monkeypatch.setattr(
         dashboard,
         "build_llm",
@@ -42,6 +42,7 @@ def test_chat_returns_grounded_retrieval_fallback(monkeypatch):
     )
 
     assert response.mode == "retrieval_fallback"
+    assert response.data_state == "baseline"
     assert "SafeRAG" in response.answer
     assert response.sources[0].paper_id == "10.1234/saferag"
     assert response.sources[0].score == 0.91
