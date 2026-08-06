@@ -68,6 +68,83 @@ const escapeHtml = (value = "") => String(value)
   .replaceAll('"', "&quot;")
   .replaceAll("'", "&#039;");
 
+const renderInlineMarkdown = (value) => escapeHtml(value)
+  .replace(/`([^`]+)`/g, "<code>$1</code>")
+  .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+  .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+  .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>")
+  .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+
+const renderMarkdown = (markdown = "") => {
+  const lines = String(markdown).replaceAll("\r\n", "\n").split("\n");
+  const output = [];
+  let paragraph = [];
+  let listType = "";
+  let listItems = [];
+  let codeLines = [];
+  let inCodeBlock = false;
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    output.push(`<p>${paragraph.map(renderInlineMarkdown).join("<br>")}</p>`);
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (!listItems.length) return;
+    output.push(`<${listType}>${listItems.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</${listType}>`);
+    listType = "";
+    listItems = [];
+  };
+
+  for (const line of lines) {
+    if (line.trim().startsWith("```")) {
+      flushParagraph();
+      flushList();
+      if (inCodeBlock) {
+        output.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+        codeLines = [];
+      }
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) {
+      codeLines.push(line);
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    const unordered = line.match(/^\s*[-*+]\s+(.+)$/);
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    const quote = line.match(/^>\s?(.*)$/);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      const level = heading[1].length;
+      output.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+    } else if (unordered || ordered) {
+      flushParagraph();
+      const nextType = unordered ? "ul" : "ol";
+      if (listType && listType !== nextType) flushList();
+      listType = nextType;
+      listItems.push((unordered || ordered)[1]);
+    } else if (quote) {
+      flushParagraph();
+      flushList();
+      output.push(`<blockquote>${renderInlineMarkdown(quote[1])}</blockquote>`);
+    } else if (!line.trim()) {
+      flushParagraph();
+      flushList();
+    } else {
+      flushList();
+      paragraph.push(line);
+    }
+  }
+  flushParagraph();
+  flushList();
+  if (codeLines.length) output.push(`<pre><code>${escapeHtml(codeLines.join("\n"))}</code></pre>`);
+  return output.join("");
+};
+
 const renderKpis = (data) => {
   const baselineQuality = data.quality.baseline.summary;
   const corruptedQuality = data.quality.corrupted.summary;
@@ -229,6 +306,7 @@ const setupChat = () => {
   const backdrop = document.querySelector("#chat-backdrop");
   const launcher = document.querySelector("#chat-launcher");
   const close = document.querySelector("#chat-close");
+  const resizeHandle = document.querySelector("#chat-resize-handle");
   const form = document.querySelector("#chat-form");
   const input = document.querySelector("#chat-input");
   const submit = document.querySelector("#chat-submit");
@@ -236,6 +314,46 @@ const setupChat = () => {
   const status = document.querySelector("#chat-status-text");
   const statusRow = status.parentElement;
   const history = [];
+  const minimumWidth = 340;
+  const defaultWidth = 460;
+
+  const applyChatWidth = (width) => {
+    const maximumWidth = Math.min(860, window.innerWidth - 24);
+    const safeWidth = Math.max(minimumWidth, Math.min(width, maximumWidth));
+    drawer.style.setProperty("--chat-width", `${safeWidth}px`);
+    return safeWidth;
+  };
+
+  const storedWidth = Number(localStorage.getItem("qualitrace-chat-width"));
+  if (Number.isFinite(storedWidth) && storedWidth > 0) applyChatWidth(storedWidth);
+
+  resizeHandle.addEventListener("pointerdown", (event) => {
+    if (window.matchMedia("(max-width: 680px)").matches) return;
+    event.preventDefault();
+    resizeHandle.setPointerCapture(event.pointerId);
+    document.body.classList.add("chat-resizing");
+  });
+  resizeHandle.addEventListener("pointermove", (event) => {
+    if (!resizeHandle.hasPointerCapture(event.pointerId)) return;
+    applyChatWidth(window.innerWidth - event.clientX);
+  });
+  const finishResize = (event) => {
+    if (!resizeHandle.hasPointerCapture(event.pointerId)) return;
+    resizeHandle.releasePointerCapture(event.pointerId);
+    document.body.classList.remove("chat-resizing");
+    localStorage.setItem("qualitrace-chat-width", String(Math.round(drawer.getBoundingClientRect().width)));
+  };
+  resizeHandle.addEventListener("pointerup", finishResize);
+  resizeHandle.addEventListener("pointercancel", finishResize);
+  resizeHandle.addEventListener("dblclick", () => {
+    applyChatWidth(defaultWidth);
+    localStorage.removeItem("qualitrace-chat-width");
+  });
+  window.addEventListener("resize", () => {
+    if (!window.matchMedia("(max-width: 680px)").matches) {
+      applyChatWidth(drawer.getBoundingClientRect().width || defaultWidth);
+    }
+  });
 
   const setOpen = (open) => {
     drawer.classList.toggle("open", open);
@@ -250,6 +368,9 @@ const setupChat = () => {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") setOpen(false);
   });
+  if (new URLSearchParams(window.location.search).get("chat") === "open") {
+    setOpen(true);
+  }
 
   const addMessage = (role, content, sources = [], mode = "") => {
     const article = document.createElement("article");
@@ -261,7 +382,7 @@ const setupChat = () => {
       </a>`).join("")}</div>` : "";
     article.innerHTML = `
       <div class="message-role">${role === "user" ? "You" : "QualiTrace"}</div>
-      <p>${escapeHtml(content)}</p>
+      <div class="message-content">${renderMarkdown(content)}</div>
       ${sourceHtml}
       ${mode ? `<span class="chat-mode">${escapeHtml(mode.replaceAll("_", " "))}</span>` : ""}`;
     messages.appendChild(article);
