@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 
 from core.utils import write_json
 from ingestion.cleaning import build_clean_dataframe
-from ingestion.crossref import PaperRecord, load_raw_records, parse_crossref_payload
+from ingestion.crossref import load_raw_records, parse_crossref_payload
 
 
 def _payload() -> dict:
@@ -54,32 +54,34 @@ def test_parse_and_load_crossref_records(tmp_path):
 
 
 def test_clean_dataframe_filters_deduplicates_and_tracks_reasons():
-    valid = parse_crossref_payload(_payload())[0]
-    missing_summary = PaperRecord(
-        paper_id="10.1234/missing",
-        title="Missing summary",
-        summary="",
-        authors=[],
-        categories=[],
-        primary_category="",
-        published="2026-01-01",
-        updated="",
-        abs_url="",
-        pdf_url="",
-        comment="",
+    parsed = parse_crossref_payload(_payload())[0]
+    valid = replace(
+        parsed,
+        summary=(
+            "This sufficiently long abstract describes a reproducible retrieval system, "
+            "its data processing stages, evaluation design, and measured outcomes."
+        ),
+    )
+    short_summary = replace(
+        parsed,
+        paper_id="10.1234/short",
+        title="Short summary",
+        summary="Too short for the required clean-data contract.",
     )
 
     dataframe = build_clean_dataframe(
-        [valid, valid, missing_summary],
+        [valid, valid, short_summary],
         run_date=datetime(2026, 8, 6, tzinfo=UTC),
     )
 
     assert len(dataframe) == 1
     assert dataframe.iloc[0]["age_days"] == 36
     assert dataframe.iloc[0]["summary_chars"] == len(valid.summary)
-    assert "Title: A Test Paper" in dataframe.iloc[0]["text_for_embedding"]
+    assert dataframe.iloc[0]["text_for_embedding"] == (
+        f"Title: {valid.title} | Authors: Chi Hieu | Summary: {valid.summary}"
+    )
     summary = dataframe.attrs["cleaning_summary"]
     assert summary["input_records"] == 3
     assert summary["output_records"] == 1
     assert summary["drop_reasons"]["duplicate_paper_id"] == 1
-    assert summary["drop_reasons"]["missing_summary"] == 1
+    assert summary["drop_reasons"]["summary_too_short"] == 1

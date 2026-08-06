@@ -5,7 +5,7 @@
   "drop_reasons": {
     "missing_paper_id": 0,
     "missing_title": 0,
-    "missing_summary": 0,
+    "summary_too_short": 0,
     "invalid_published": 0,
     "duplicate_paper_id": 0
   }

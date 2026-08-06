@@ -12,6 +12,7 @@ from ingestion.crossref import PaperRecord
 
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+MIN_SUMMARY_CHARS = 100
 _CLEAN_COLUMNS = [
     "paper_id",
     "title",
@@ -63,18 +64,10 @@ def _parse_date(value: Any) -> date | None:
 
 def _embedding_text(
     title: str,
-    summary: str,
     authors_joined: str,
-    categories_joined: str,
-    published: str,
+    summary: str,
 ) -> str:
-    parts = [f"Title: {title}", f"Abstract: {summary}"]
-    if authors_joined:
-        parts.append(f"Authors: {authors_joined}")
-    if categories_joined:
-        parts.append(f"Categories: {categories_joined}")
-    parts.append(f"Published: {published}")
-    return "\n".join(parts)
+    return f"Title: {title} | Authors: {authors_joined} | Summary: {summary}"
 
 
 def build_clean_dataframe(records: list[PaperRecord], run_date: datetime) -> pd.DataFrame:
@@ -83,7 +76,7 @@ def build_clean_dataframe(records: list[PaperRecord], run_date: datetime) -> pd.
     drop_counts = {
         "missing_paper_id": 0,
         "missing_title": 0,
-        "missing_summary": 0,
+        "summary_too_short": 0,
         "invalid_published": 0,
         "duplicate_paper_id": 0,
     }
@@ -101,8 +94,8 @@ def build_clean_dataframe(records: list[PaperRecord], run_date: datetime) -> pd.
         if not title:
             drop_counts["missing_title"] += 1
             continue
-        if not summary:
-            drop_counts["missing_summary"] += 1
+        if len(summary) < MIN_SUMMARY_CHARS:
+            drop_counts["summary_too_short"] += 1
             continue
         if published_date is None:
             drop_counts["invalid_published"] += 1
@@ -138,10 +131,8 @@ def build_clean_dataframe(records: list[PaperRecord], run_date: datetime) -> pd.
                 "age_days": (run_day - published_date).days,
                 "text_for_embedding": _embedding_text(
                     title,
-                    summary,
                     authors_joined,
-                    categories_joined,
-                    published,
+                    summary,
                 ),
             }
         )
