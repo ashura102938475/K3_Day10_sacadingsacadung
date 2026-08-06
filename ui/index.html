@@ -156,6 +156,35 @@
       <div class="error-banner" id="error-banner" hidden></div>
     </main>
 
+    <button class="chat-launcher" id="chat-launcher" aria-label="Open QualiTrace Assistant" aria-expanded="false">
+      <span>✦</span>
+      <span>Ask the corpus</span>
+    </button>
+    <aside class="chat-drawer" id="chat-drawer" aria-label="QualiTrace Assistant" aria-hidden="true">
+      <header class="chat-header">
+        <div>
+          <p class="eyebrow">Grounded RAG chat</p>
+          <h2>QualiTrace Assistant</h2>
+        </div>
+        <button class="icon-button" id="chat-close" aria-label="Close assistant">×</button>
+      </header>
+      <div class="chat-status"><i class="pulse"></i><span id="chat-status-text">Connecting to retrieval API…</span></div>
+      <div class="chat-messages" id="chat-messages" aria-live="polite">
+        <article class="chat-message assistant">
+          <div class="message-role">QualiTrace</div>
+          <p>Ask me about the 24 papers in the indexed Crossref corpus. I will retrieve evidence and show the supporting sources.</p>
+        </article>
+      </div>
+      <form class="chat-form" id="chat-form">
+        <textarea id="chat-input" rows="2" maxlength="2000" placeholder="Ask about a paper, author, method, or finding…" required></textarea>
+        <div class="chat-form-footer">
+          <span>Enter to send · Shift+Enter for newline</span>
+          <button type="submit" id="chat-submit">Send <span>↗</span></button>
+        </div>
+      </form>
+    </aside>
+    <div class="chat-backdrop" id="chat-backdrop"></div>
+
     <footer>
       <span>QualiTrace AI · Day 10 Data Observability Lab</span>
       <span id="artifact-time">Artifact snapshot</span>

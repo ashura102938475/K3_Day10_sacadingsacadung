@@ -1,4 +1,5 @@
 const DATA_ROOT = "../data";
+const CHAT_API = "http://127.0.0.1:8001";
 
 const artifactPaths = {
   metrics: {
@@ -223,6 +224,108 @@ const setupTheme = () => {
   });
 };
 
+const setupChat = () => {
+  const drawer = document.querySelector("#chat-drawer");
+  const backdrop = document.querySelector("#chat-backdrop");
+  const launcher = document.querySelector("#chat-launcher");
+  const close = document.querySelector("#chat-close");
+  const form = document.querySelector("#chat-form");
+  const input = document.querySelector("#chat-input");
+  const submit = document.querySelector("#chat-submit");
+  const messages = document.querySelector("#chat-messages");
+  const status = document.querySelector("#chat-status-text");
+  const statusRow = status.parentElement;
+  const history = [];
+
+  const setOpen = (open) => {
+    drawer.classList.toggle("open", open);
+    backdrop.classList.toggle("open", open);
+    drawer.setAttribute("aria-hidden", String(!open));
+    launcher.setAttribute("aria-expanded", String(open));
+    if (open) setTimeout(() => input.focus(), 180);
+  };
+  launcher.addEventListener("click", () => setOpen(true));
+  close.addEventListener("click", () => setOpen(false));
+  backdrop.addEventListener("click", () => setOpen(false));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") setOpen(false);
+  });
+
+  const addMessage = (role, content, sources = [], mode = "") => {
+    const article = document.createElement("article");
+    article.className = `chat-message ${role}`;
+    const sourceHtml = sources.length ? `<div class="chat-sources">${sources.slice(0, 3).map((source, index) => `
+      <a class="chat-source" href="${escapeHtml(source.url || "#")}" target="_blank" rel="noreferrer">
+        <strong>[${index + 1}] ${escapeHtml(source.title)}</strong>
+        <span>${escapeHtml(source.paper_id)} · score ${Number(source.score).toFixed(3)}</span>
+      </a>`).join("")}</div>` : "";
+    article.innerHTML = `
+      <div class="message-role">${role === "user" ? "You" : "QualiTrace"}</div>
+      <p>${escapeHtml(content)}</p>
+      ${sourceHtml}
+      ${mode ? `<span class="chat-mode">${escapeHtml(mode.replaceAll("_", " "))}</span>` : ""}`;
+    messages.appendChild(article);
+    messages.scrollTop = messages.scrollHeight;
+    return article;
+  };
+
+  const checkHealth = async () => {
+    try {
+      const response = await fetch(`${CHAT_API}/api/health`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const health = await response.json();
+      status.textContent = `${health.embedding_provider} retrieval · ${health.llm_provider} LLM · ready`;
+      statusRow.classList.remove("offline");
+    } catch {
+      status.textContent = "Chat API offline · start backend on port 8001";
+      statusRow.classList.add("offline");
+    }
+  };
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const message = input.value.trim();
+    if (!message || submit.disabled) return;
+    const priorHistory = history.slice(-8);
+    addMessage("user", message);
+    history.push({ role: "user", content: message });
+    input.value = "";
+    submit.disabled = true;
+    const loading = addMessage("assistant", "Retrieving evidence and composing an answer…");
+    loading.classList.add("loading");
+    try {
+      const response = await fetch(`${CHAT_API}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, history: priorHistory, top_k: 4 }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
+      loading.remove();
+      addMessage("assistant", payload.answer, payload.sources, payload.mode);
+      history.push({ role: "assistant", content: payload.answer });
+      status.textContent = `${payload.model} · ${payload.mode.replaceAll("_", " ")}`;
+      statusRow.classList.remove("offline");
+    } catch (error) {
+      loading.remove();
+      addMessage("assistant", `Chat request failed: ${error.message}`);
+      statusRow.classList.add("offline");
+    } finally {
+      submit.disabled = false;
+      input.focus();
+    }
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      form.requestSubmit();
+    }
+  });
+
+  checkHealth();
+};
+
 try {
   const data = await loadArtifacts();
   renderKpis(data);
@@ -233,6 +336,7 @@ try {
   renderCorruptionLog(data);
   renderPapers(data);
   setupTheme();
+  setupChat();
 } catch (error) {
   const banner = document.querySelector("#error-banner");
   banner.hidden = false;

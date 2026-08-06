@@ -5,10 +5,12 @@ description = "Student starter lab for Day 10 data pipeline, data observability,
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
 dependencies = [
+  "fastapi>=0.116.0",
   "langchain>=1.0.0",
   "pandas>=2.2.2",
   "python-dotenv>=1.0.1",
   "requests>=2.32.3",
+  "uvicorn>=0.35.0",
 ]
 
 [project.optional-dependencies]

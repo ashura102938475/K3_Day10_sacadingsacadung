@@ -123,9 +123,17 @@ def load_settings(project_dir: Path | None = None) -> Settings:
         else "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
 
+    default_llm_provider = "nvidia" if os.getenv("NVIDIA_API_KEY") else "gemini"
+    llm_provider = os.getenv("LLM_PROVIDER", default_llm_provider).strip().lower()
+    default_llm_model = (
+        "nvidia/nemotron-3-nano-30b-a3b"
+        if llm_provider == "nvidia"
+        else "gemini-2.5-flash"
+    )
+
     return Settings(
-        llm_provider=os.getenv("LLM_PROVIDER", "gemini"),
-        model_name=os.getenv("LLM_MODEL", "gemini-2.5-flash"),
+        llm_provider=llm_provider,
+        model_name=os.getenv("LLM_MODEL", default_llm_model),
         google_api_key=os.getenv("GOOGLE_API_KEY"),
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
