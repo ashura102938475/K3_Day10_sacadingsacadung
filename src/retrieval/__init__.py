@@ -7,6 +7,8 @@ _EXPORTS = {
     "build_agent": (".agent", "build_agent"),
     "run_agent_question": (".agent", "run_agent_question"),
     "MiniLMEmbeddings": (".embeddings", "MiniLMEmbeddings"),
+    "create_embeddings": (".embeddings", "create_embeddings"),
+    "JinaEmbeddings": (".jina_embeddings", "JinaEmbeddings"),
     "LocalEmbeddingIndex": (".index", "LocalEmbeddingIndex"),
     "SearchResult": (".index", "SearchResult"),
     "build_llm": (".llm", "build_llm"),

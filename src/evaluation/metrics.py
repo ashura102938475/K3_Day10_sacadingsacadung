@@ -7,12 +7,11 @@ import sys
 import types
 from typing import Any
 
-from datasets import Dataset
 from pydantic import BaseModel, Field
 
 from core.config import Settings
 from core.utils import normalize_whitespace, read_json, write_json
-from retrieval.embeddings import MiniLMEmbeddings
+from retrieval.embeddings import create_embeddings
 from retrieval.index import LocalEmbeddingIndex
 from retrieval.llm import build_llm
 from retrieval.qa import answer_question
@@ -78,8 +77,21 @@ def _run_ragas(settings: Settings, answers: list[dict[str, Any]]) -> dict[str, A
             shim = types.ModuleType("langchain_community.chat_models.vertexai")
             shim.ChatVertexAI = type("ChatVertexAI", (), {})
             sys.modules["langchain_community.chat_models.vertexai"] = shim
-        from ragas import evaluate
-        from ragas.metrics import answer_relevancy, context_precision, context_recall, faithfulness
+        try:
+            from datasets import Dataset  # noqa: PLC0415
+        except ImportError:
+            raise ImportError(
+                "datasets is required for Ragas evaluation. "
+                "Install it with: uv sync --extra eval"
+            ) from None
+
+        from ragas import evaluate  # noqa: PLC0415
+        from ragas.metrics import (  # noqa: PLC0415
+            answer_relevancy,
+            context_precision,
+            context_recall,
+            faithfulness,
+        )
 
         dataset = Dataset.from_dict(
             {
@@ -93,7 +105,7 @@ def _run_ragas(settings: Settings, answers: list[dict[str, Any]]) -> dict[str, A
             dataset,
             metrics=[answer_relevancy, context_precision, context_recall, faithfulness],
             llm=build_llm(settings=settings, temperature=0.0),
-            embeddings=MiniLMEmbeddings(settings.embedding_model),
+            embeddings=create_embeddings(settings),
         )
         return dict(result)
     except Exception as exc:  # pragma: no cover

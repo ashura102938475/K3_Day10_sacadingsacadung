@@ -8,7 +8,13 @@ def build_llm(settings: Settings, temperature: float = 0.0):
     require_llm_credentials(settings)
 
     if provider == "gemini":
-        from langchain_google_genai import ChatGoogleGenerativeAI  # noqa: PLC0415
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI  # noqa: PLC0415
+        except ImportError:
+            raise ImportError(
+                "langchain-google-genai is required for the Gemini provider. "
+                "Install it with: uv sync --extra google"
+            ) from None
 
         return ChatGoogleGenerativeAI(
             model=settings.model_name,
@@ -16,7 +22,13 @@ def build_llm(settings: Settings, temperature: float = 0.0):
             temperature=temperature,
         )
     if provider == "openai":
-        from langchain_openai import ChatOpenAI  # noqa: PLC0415
+        try:
+            from langchain_openai import ChatOpenAI  # noqa: PLC0415
+        except ImportError:
+            raise ImportError(
+                "langchain-openai is required for the OpenAI provider. "
+                "Install it with: uv sync --extra openai"
+            ) from None
 
         return ChatOpenAI(
             model=settings.model_name,
@@ -24,7 +36,13 @@ def build_llm(settings: Settings, temperature: float = 0.0):
             temperature=temperature,
         )
     if provider == "anthropic":
-        from langchain_anthropic import ChatAnthropic  # noqa: PLC0415
+        try:
+            from langchain_anthropic import ChatAnthropic  # noqa: PLC0415
+        except ImportError:
+            raise ImportError(
+                "langchain-anthropic is required for the Anthropic provider. "
+                "Install it with: uv sync --extra anthropic"
+            ) from None
 
         return ChatAnthropic(
             model=settings.model_name,
@@ -32,7 +50,13 @@ def build_llm(settings: Settings, temperature: float = 0.0):
             temperature=temperature,
         )
     if provider == "openrouter":
-        from langchain_openai import ChatOpenAI  # noqa: PLC0415
+        try:
+            from langchain_openai import ChatOpenAI  # noqa: PLC0415
+        except ImportError:
+            raise ImportError(
+                "langchain-openai is required for the OpenRouter provider. "
+                "Install it with: uv sync --extra openai"
+            ) from None
 
         return ChatOpenAI(
             model=settings.model_name,
@@ -41,7 +65,13 @@ def build_llm(settings: Settings, temperature: float = 0.0):
             temperature=temperature,
         )
     if provider == "ollama":
-        from langchain_ollama import ChatOllama  # noqa: PLC0415
+        try:
+            from langchain_ollama import ChatOllama  # noqa: PLC0415
+        except ImportError:
+            raise ImportError(
+                "langchain-ollama is required for the Ollama provider. "
+                "Install it with: uv sync --extra ollama"
+            ) from None
 
         return ChatOllama(
             model=settings.model_name,
@@ -49,7 +79,13 @@ def build_llm(settings: Settings, temperature: float = 0.0):
             temperature=temperature,
         )
     if provider == "custom":
-        from langchain_openai import ChatOpenAI  # noqa: PLC0415
+        try:
+            from langchain_openai import ChatOpenAI  # noqa: PLC0415
+        except ImportError:
+            raise ImportError(
+                "langchain-openai is required for custom OpenAI-compatible providers. "
+                "Install it with: uv sync --extra openai"
+            ) from None
 
         return ChatOpenAI(
             model=settings.model_name,
@@ -58,7 +94,13 @@ def build_llm(settings: Settings, temperature: float = 0.0):
             temperature=temperature,
         )
     if provider == "nvidia":
-        from langchain_openai import ChatOpenAI  # noqa: PLC0415
+        try:
+            from langchain_openai import ChatOpenAI  # noqa: PLC0415
+        except ImportError:
+            raise ImportError(
+                "langchain-openai is required for the NVIDIA provider. "
+                "Install it with: uv sync --extra openai"
+            ) from None
 
         return ChatOpenAI(
             model=settings.model_name,

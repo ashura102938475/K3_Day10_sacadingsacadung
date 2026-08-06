@@ -54,6 +54,8 @@ class Settings:
     custom_llm_base_url: str | None
     nvidia_api_key: str | None
     nvidia_base_url: str
+    embedding_provider: str
+    jina_api_key: str | None
     embedding_model: str
     baseline_collection_name: str
     corrupted_collection_name: str
@@ -123,6 +125,8 @@ def load_settings(project_dir: Path | None = None) -> Settings:
         custom_llm_base_url=os.getenv("CUSTOM_LLM_BASE_URL"),
         nvidia_api_key=os.getenv("NVIDIA_API_KEY"),
         nvidia_base_url=os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
+        embedding_provider=os.getenv("EMBEDDING_PROVIDER", "local"),
+        jina_api_key=os.getenv("JINA_API_KEY"),
         embedding_model=os.getenv(
             "EMBEDDING_MODEL",
             "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",

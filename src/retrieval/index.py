@@ -4,12 +4,23 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import chromadb
 import pandas as pd
 
 from core.config import Settings
 from core.utils import read_json, safe_slug, write_json
-from retrieval.embeddings import MiniLMEmbeddings
+from retrieval.embeddings import create_embeddings
+
+
+def _get_chromadb():
+    """Lazy-import chromadb so it is only required when using the local provider."""
+    try:
+        import chromadb  # noqa: PLC0415
+    except ImportError:
+        raise ImportError(
+            "chromadb is required for local retrieval. "
+            "Install it with: uv sync --extra local"
+        ) from None
+    return chromadb
 
 
 @dataclass(frozen=True)
@@ -34,8 +45,8 @@ class LocalEmbeddingIndex:
         self.documents = documents
         self.persist_path = persist_path
         self.embedding_backend = "chroma"
-        self.embedding_model = MiniLMEmbeddings(settings.embedding_model)
-        self.client = chromadb.PersistentClient(path=str(persist_path))
+        self.embedding_model = create_embeddings(settings)
+        self.client = _get_chromadb().PersistentClient(path=str(persist_path))
         self.collection = self.client.get_collection(name=collection_name)
         self.documents_by_paper_id = {document["paper_id"].lower(): document for document in documents}
         self.documents_by_title = {document["title"].lower(): document for document in documents}
@@ -92,8 +103,8 @@ class LocalEmbeddingIndex:
         persist_path = settings.paths.chroma_dir
         persist_path.mkdir(parents=True, exist_ok=True)
 
-        embedding_model = MiniLMEmbeddings(settings.embedding_model)
-        client = chromadb.PersistentClient(path=str(persist_path))
+        embedding_model = create_embeddings(settings)
+        client = _get_chromadb().PersistentClient(path=str(persist_path))
         try:
             client.delete_collection(name=collection_name)
         except Exception:
