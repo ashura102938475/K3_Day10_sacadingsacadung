@@ -35,6 +35,7 @@ const artifactPaths = {
     repaired: `${DATA_ROOT}/quality/freshness_repaired.json`,
   },
   corruptionLog: `${DATA_ROOT}/results/corruption_log.json`,
+  repairLog: `${DATA_ROOT}/results/repair_log.json`,
   papers: `${DATA_ROOT}/clean/papers_clean.json`,
   manifest: `${DATA_ROOT}/embeddings/papers_embeddings.json`,
 };
@@ -59,6 +60,33 @@ const corruptionLabels = {
   truncate_title: ["Cắt ngắn tiêu đề", "Cắt title còn khoảng một phần ba độ dài trên hai dòng."],
   age_published_dates: ["Làm cũ ngày xuất bản", "Lùi ngày xuất bản 365 ngày trên hai dòng."],
   duplicate_rows: ["Nhân bản dòng", "Nhân bản hai dòng để phá tính duy nhất của paper_id."],
+};
+
+const corruptionImpactLabels = {
+  drop_latest_records: {
+    dataset: "Thiếu 2 bản ghi mới nhất; độ phủ giảm từ 24 xuống 22 paper_id duy nhất.",
+    rag: "Mất tài liệu liên quan khỏi top-k và làm giảm độ tươi mới.",
+  },
+  blank_summary: {
+    dataset: "2 summary rỗng; summary_chars và nội dung embedding mất tính đầy đủ.",
+    rag: "Vector mất ngữ nghĩa của phần tóm tắt nên truy xuất kém chính xác hơn.",
+  },
+  inject_noise: {
+    dataset: "2 text_for_embedding không còn khớp với các trường nguồn.",
+    rag: "Vector bị lệch và thứ hạng cosine của tài liệu có thể giảm.",
+  },
+  truncate_title: {
+    dataset: "2 tiêu đề chỉ còn khoảng một phần ba nội dung.",
+    rag: "Truy vấn theo tiêu đề và trích dẫn nguồn trở nên kém tin cậy.",
+  },
+  age_published_dates: {
+    dataset: "2 ngày xuất bản bị lùi 365 ngày và age_days tăng sai.",
+    rag: "Báo cáo freshness thất bại; tài liệu mới bị xem như đã cũ.",
+  },
+  duplicate_rows: {
+    dataset: "Thêm 2 dòng trùng, khiến 24 dòng chỉ còn 22 paper_id duy nhất.",
+    rag: "Vector trùng có thể chiếm chỗ của bằng chứng khác trong top-k.",
+  },
 };
 
 const qualityCheckLabels = {
@@ -107,6 +135,7 @@ const loadArtifacts = async () => {
     }
   }
   entries.push(["corruptionLog", artifactPaths.corruptionLog]);
+  entries.push(["repairLog", artifactPaths.repairLog]);
   entries.push(["papers", artifactPaths.papers]);
   entries.push(["manifest", artifactPaths.manifest]);
 
@@ -367,7 +396,8 @@ const setupPresentation = (data) => {
     <div class="slide-card">
       <span class="slide-number">×${entry.count}</span>
       <strong>${escapeHtml(corruptionLabels[entry.corruption]?.[0] || entry.corruption.replaceAll("_", " "))}</strong>
-      <p>${escapeHtml(corruptionLabels[entry.corruption]?.[1] || entry.description)}</p>
+      <p class="impact-line"><b>Dataset</b>${escapeHtml(corruptionImpactLabels[entry.corruption]?.dataset || entry.dataset_impact)}</p>
+      <p class="impact-line rag"><b>RAG</b>${escapeHtml(corruptionImpactLabels[entry.corruption]?.rag || entry.rag_impact)}</p>
     </div>`).join("");
 
   const slides = [
@@ -432,24 +462,25 @@ const setupPresentation = (data) => {
     },
     {
       kicker: "05 · Thí nghiệm khả năng quan sát",
+      className: "impact-slide",
       title: "Corruption có kiểm soát làm suy giảm chất lượng một cách nhìn thấy được",
-      lead: "Sáu kịch bản xác định tác động completeness, validity, uniqueness, consistency và freshness trước khi snapshot raw phục hồi dữ liệu.",
+      lead: "Mỗi thay đổi đều ghi rõ paper_id bị tác động, ảnh hưởng lên dataset và hậu quả trực tiếp đối với retrieval.",
       body: `<div class="slide-grid">${corruptionCards}</div>`,
       note: "Không mô tả corruption là lỗi ngẫu nhiên; nó có seed và log để thí nghiệm có thể tái lập.",
     },
     {
       kicker: "06 · Quy trình phục hồi",
-      title: "Không vá dữ liệu lỗi: tái tạo từ nguồn thô đáng tin cậy",
-      lead: "Pipeline coi dữ liệu Crossref thô là nguồn chuẩn bất biến, sau đó tái tạo toàn bộ artifact phía sau để loại bỏ cả lỗi nhìn thấy lẫn lỗi tiềm ẩn.",
+      title: "Chỉ sửa phần bị lỗi bằng dữ liệu tốt làm tham chiếu",
+      lead: `Corruption log khoanh vùng ${data.repairLog.targeted_unique_records} paper_id cần xử lý; ${data.repairLog.unaffected_reference_records} bản ghi tốt còn lại không bị thay nội dung.`,
       body: `<div class="pipeline-flow repair-flow">
-        <div class="flow-node"><i>1</i><strong>Phát hiện lỗi</strong><span>cổng chất lượng + độ tươi mới</span></div>
-        <div class="flow-node"><i>2</i><strong>Nạp lại nguồn thô</strong><span>crossref_records.json</span></div>
-        <div class="flow-node"><i>3</i><strong>Làm sạch lại</strong><span>cùng data contract</span></div>
-        <div class="flow-node"><i>4</i><strong>Tạo lại chỉ mục</strong><span>Jina + Chroma repaired</span></div>
+        <div class="flow-node"><i>1</i><strong>Đọc corruption log</strong><span>loại lỗi + paper_id</span></div>
+        <div class="flow-node"><i>2</i><strong>Đối chiếu dữ liệu tốt</strong><span>papers_clean.csv</span></div>
+        <div class="flow-node"><i>3</i><strong>Sửa đúng trường lỗi</strong><span>title / summary / date / text</span></div>
+        <div class="flow-node"><i>4</i><strong>Sửa cấu trúc dòng</strong><span>+2 thiếu / −2 trùng</span></div>
         <div class="flow-node"><i>5</i><strong>Xác nhận phục hồi</strong><span>quality + freshness + eval</span></div>
       </div>
-      <div class="takeaway"><strong>Điều kiện hoàn tất</strong><span>11/11 cổng đạt, 0 dòng quá hạn và các chỉ số đánh giá trở về mức dữ liệu gốc.</span></div>`,
-      note: "Nhấn mạnh hàm _repair_from_raw không sửa từng ô của dữ liệu lỗi. Nó nạp lại raw, chạy build_clean_dataframe, tạo embedding/index mới rồi đánh giá lại độc lập.",
+      <div class="takeaway"><strong>Kết quả có mục tiêu</strong><span>${data.repairLog.before.unique_paper_ids} → ${data.repairLog.after.unique_paper_ids} paper_id duy nhất; 11/11 cổng đạt và metric trở về mức gốc.</span></div>`,
+      note: "Module repair chỉ dùng các ID trong corruption_log. Summary khôi phục 3 trường dẫn xuất; noise 1 trường; title 2 trường; date 2 trường; thêm 2 dòng thiếu và bỏ 2 bản sao trùng.",
     },
     {
       kicker: "07 · Kết quả đo lường",
@@ -494,7 +525,7 @@ const setupPresentation = (data) => {
   let current = 0;
 
   container.innerHTML = slides.map((slide, index) => `
-    <article class="presentation-slide ${index === 0 ? "active" : ""}" data-slide="${index}">
+    <article class="presentation-slide ${slide.className || ""} ${index === 0 ? "active" : ""}" data-slide="${index}">
       <p class="slide-kicker">${slide.kicker}</p>
       <h3>${slide.title}</h3>
       <p class="slide-lead">${slide.lead}</p>
