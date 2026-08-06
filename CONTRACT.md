@@ -10,13 +10,14 @@
 
 ## 1. Phân công (2 thành viên)
 
-| # | Thành viên | MSSV | Vai trò | Đã implement | Đang/cần implement |
+| # | Thành viên | MSSV | Vai trò | Đã implement | Hỗ trợ / refactor |
 |:--|-----------|------|---------|-------------|-------------------|
-| 1 | **Nguyễn Anh Trà** | 2A202601735 | Corruption Owner | — | `corruption.py` |
-| 2 | **Nguyễn Chí Hiếu** | 2A202601931 | Ingestion, Retrieval, Eval, Pipeline Owner | `crossref.py`, `cleaning.py`, `testset.py`, `embeddings.py`, `index.py`, `llm.py`, `agent.py`, `qa.py`, `utils.py` | `quality.py`, `reporting.py`, `phase1.py`, `corruption_flow.py` |
+| 1 | **Nguyễn Anh Trà** | 2A202601735 | Corruption, Observability, Pipeline, Multi-Provider Owner | `corruption.py`, `quality.py`, `reporting.py`, `phase1.py`, `corruption_flow.py`, `jina_embeddings.py` | `embeddings.py` (Jina factory), `config.py` (Jina + NVIDIA + embedding), `llm.py` (NVIDIA), `index.py`, `metrics.py`, `.env.example`, `pyproject.toml` |
+| 2 | **Nguyễn Chí Hiếu** | 2A202601931 | Ingestion, Retrieval, Eval, UI Owner | `crossref.py`, `cleaning.py`, `testset.py`, `embeddings.py`, `index.py`, `llm.py`, `agent.py`, `qa.py`, `utils.py`, Stitch UI dashboard | Refactor + harden: `corruption.py`, `quality.py`, `corruption_flow.py`, `phase1.py`, `jina_embeddings.py`, `index.py`, `embeddings.py`, `config.py`, `metrics.py` |
 
 > **Ghi chú:** Hiếu đã hoàn thành baseline (ingestion → cleaning → embedding → index → eval set) trước.
-> Trà chỉ cần tập trung vào `corruption.py`. Các module pipeline và observability còn lại do Hiếu.
+> Trà đã implement toàn bộ các module TODO còn lại (corruption, observability, pipelines), đồng thời bổ sung Jina embeddings và NVIDIA LLM provider.
+> Hiếu sau đó refactor, harden code của Trà, thêm tests, data artifacts, và Stitch UI dashboard.
 
 ---
 
@@ -205,14 +206,17 @@ Title: {title} | Authors: {authors_joined} | Summary: {summary}
 
 ## 6. Việc còn lại
 
-| Module | Owner | Mô tả |
-|--------|:-----:|-------|
-| `corruption.py` | **Trà** | Mô phỏng các dạng data corruption trên clean data — **đây là việc DUY NHẤT của bạn** |
-| `quality.py` | Hiếu | Great Expectations quality checks + freshness report |
-| `reporting.py` | Hiếu | Markdown report cho baseline + comparison |
-| `phase1.py` | Hiếu | Pipeline baseline end-to-end |
-| `corruption_flow.py` | Hiếu | Pipeline corrupt → eval → repair → compare |
+Tất cả các module đã được implement. Trạng thái hiện tại:
+
+| Module | Owner (implement) | Refactor bởi | Mô tả | Trạng thái |
+|--------|:-----:|:-----:|-------|:--------:|
+| `corruption.py` | **Trà** | Hiếu | Mô phỏng 6 dạng data corruption (drop, blank, noise, truncate, age, duplicate) | ✅ Hoàn thành |
+| `quality.py` | **Trà** | Hiếu | 12 data quality checks + freshness report | ✅ Hoàn thành |
+| `reporting.py` | **Trà** | — | Markdown report cho baseline + comparison | ✅ Hoàn thành |
+| `phase1.py` | **Trà** | Hiếu | Pipeline baseline end-to-end | ✅ Hoàn thành |
+| `corruption_flow.py` | **Trà** | Hiếu | Pipeline corrupt → eval → repair → compare | ✅ Hoàn thành |
+| `jina_embeddings.py` | **Trà** | Hiếu | Jina AI REST API embeddings (task-aware routing) | ✅ Hoàn thành |
 
 ---
 
-*Cập nhật lần cuối: 2026-08-06 — Sync với commits 04cd41a..654d2a4 của Hiếu*
+*Cập nhật lần cuối: 2026-08-06 — Sync với toàn bộ commit history (04cd41a..d8ce2a9), phản ánh đúng công sức của cả Trà và Hiếu*
