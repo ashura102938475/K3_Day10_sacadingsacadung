@@ -7,7 +7,8 @@ from langchain_core.embeddings import Embeddings
 
 
 JINA_API_URL = "https://api.jina.ai/v1/embeddings"
-REQUEST_TIMEOUT = 30
+REQUEST_TIMEOUT = 60
+MAX_BATCH_SIZE = 64
 
 
 class JinaEmbeddings(Embeddings):
@@ -28,6 +29,17 @@ class JinaEmbeddings(Embeddings):
         self.base_url = base_url
 
     def _embed(self, texts: list[str], task: str) -> list[list[float]]:
+        if not texts:
+            return []
+        if not self.api_key:
+            raise RuntimeError("JINA_API_KEY is required to call the Jina embeddings API.")
+
+        embeddings: list[list[float]] = []
+        for start in range(0, len(texts), MAX_BATCH_SIZE):
+            embeddings.extend(self._embed_batch(texts[start : start + MAX_BATCH_SIZE], task))
+        return embeddings
+
+    def _embed_batch(self, texts: list[str], task: str) -> list[list[float]]:
         headers: dict[str, str] = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
@@ -45,8 +57,14 @@ class JinaEmbeddings(Embeddings):
             timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()
-        data = response.json()
-        return [item["embedding"] for item in data["data"]]
+        payload_data = response.json()
+        items = sorted(payload_data.get("data", []), key=lambda item: item.get("index", 0))
+        vectors = [item["embedding"] for item in items]
+        if len(vectors) != len(texts):
+            raise RuntimeError(
+                f"Jina returned {len(vectors)} embeddings for {len(texts)} inputs."
+            )
+        return vectors
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return self._embed(texts, task="retrieval.passage")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -97,8 +98,9 @@ class LocalEmbeddingIndex:
         df: pd.DataFrame,
         settings: Settings,
         embeddings_output_path: Path | None = None,
+        collection_name: str | None = None,
     ) -> "LocalEmbeddingIndex":
-        collection_name = cls._derive_collection_name(settings, embeddings_output_path)
+        collection_name = collection_name or cls._derive_collection_name(settings, embeddings_output_path)
         documents = cls._build_documents(df)
         persist_path = settings.paths.chroma_dir
         persist_path.mkdir(parents=True, exist_ok=True)
@@ -122,12 +124,18 @@ class LocalEmbeddingIndex:
         )
 
         manifest_path = embeddings_output_path or settings.paths.embeddings_json
-        manifest_persist_path = persist_path.resolve().relative_to(settings.paths.project_dir.resolve())
+        try:
+            manifest_persist_path = persist_path.resolve().relative_to(settings.paths.project_dir.resolve())
+        except ValueError:
+            manifest_persist_path = persist_path.resolve()
         write_json(
             manifest_path,
             {
                 "backend": "chroma",
+                "embedding_provider": settings.embedding_provider,
                 "embedding_model": settings.embedding_model,
+                "embedding_dimension": len(embeddings[0]) if embeddings else 0,
+                "generated_at_utc": datetime.now(UTC).isoformat(),
                 "persist_path": manifest_persist_path.as_posix(),
                 "collection_name": collection_name,
                 "documents": documents,
@@ -143,6 +151,20 @@ class LocalEmbeddingIndex:
     @classmethod
     def load(cls, settings: Settings, embeddings_path: Path | None = None) -> "LocalEmbeddingIndex":
         payload = read_json(embeddings_path or settings.paths.embeddings_json)
+        manifest_provider = payload.get("embedding_provider")
+        if manifest_provider and manifest_provider != settings.embedding_provider:
+            raise RuntimeError(
+                "Embedding provider mismatch: index was built with "
+                f"{manifest_provider!r}, current settings use {settings.embedding_provider!r}. "
+                "Rebuild the index before querying it."
+            )
+        manifest_model = payload.get("embedding_model")
+        if manifest_model and manifest_model != settings.embedding_model:
+            raise RuntimeError(
+                "Embedding model mismatch: index was built with "
+                f"{manifest_model!r}, current settings use {settings.embedding_model!r}. "
+                "Rebuild the index before querying it."
+            )
         persist_path = Path(payload["persist_path"])
         if not persist_path.is_absolute():
             persist_path = settings.paths.project_dir / persist_path

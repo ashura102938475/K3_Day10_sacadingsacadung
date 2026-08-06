@@ -60,6 +60,9 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "count": drop_count,
             "affected_paper_ids": dropped_paper_ids,
             "description": f"Dropped {drop_count} latest records to simulate freshness loss.",
+            "dataset_impact": f"{drop_count} records missing; newest publication coverage decreases.",
+            "rag_impact": "Relevant documents can disappear from retrieval results and freshness declines.",
+            "repair_strategy": "Add only the missing paper_ids from the good baseline.",
         }
     )
 
@@ -77,6 +80,9 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "count": blank_count,
             "affected_paper_ids": blank_paper_ids,
             "description": f"Set summary to empty string on {blank_count} rows.",
+            "dataset_impact": f"{blank_count} summaries and derived summary_chars become incomplete.",
+            "rag_impact": "Document semantics weaken because embedding text loses abstract content.",
+            "repair_strategy": "Restore summary, summary_chars, and text_for_embedding for logged paper_ids.",
         }
     )
 
@@ -89,19 +95,15 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
     noise_paper_ids: list[str] = []
     for idx in noise_indices:
         noise_paper_ids.append(str(corrupted.at[idx, "paper_id"]))
-        original = str(corrupted.at[idx, "text_for_embedding"])
-        tokens = original.split()
-        if len(tokens) >= 5:
-            for _ in range(max(1, len(tokens) // 5)):
-                pos = rng.randint(0, len(tokens) - 1)
-                tokens[pos] = rng.choice(_NOISE_TOKENS)
-        corrupted.at[idx, "text_for_embedding"] = " ".join(tokens)
     log_entries.append(
         {
             "corruption": "inject_noise",
             "count": noise_count,
             "affected_paper_ids": noise_paper_ids,
             "description": f"Injected noise tokens into text_for_embedding on {noise_count} rows.",
+            "dataset_impact": f"{noise_count} embedding texts no longer match their source fields.",
+            "rag_impact": "Vector representations drift and ranking relevance can decrease.",
+            "repair_strategy": "Restore only text_for_embedding from the good baseline.",
         }
     )
 
@@ -124,6 +126,9 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "count": trunc_count,
             "affected_paper_ids": trunc_paper_ids,
             "description": f"Truncated titles to ~1/3 length on {trunc_count} rows.",
+            "dataset_impact": f"{trunc_count} titles lose identifying information.",
+            "rag_impact": "Title-based queries and generated citations become less reliable.",
+            "repair_strategy": "Restore title and its derived text_for_embedding.",
         }
     )
 
@@ -152,8 +157,31 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "count": age_count,
             "affected_paper_ids": age_paper_ids,
             "description": f"Aged published dates by -365 days on {age_count} rows.",
+            "dataset_impact": f"{age_count} publication dates and age_days values become stale.",
+            "rag_impact": "Freshness monitoring fails and recent-document ranking can be misleading.",
+            "repair_strategy": "Restore published and age_days for logged paper_ids.",
         }
     )
+
+    # Rebuild derived embedding text by stable paper_id before adding
+    # intentional embedding-only noise and duplicates. DataFrame indexes are
+    # not stable after dropping/concatenating rows.
+    rebuild_paper_ids = set(blank_paper_ids) | set(trunc_paper_ids)
+    rebuild_mask = corrupted["paper_id"].astype(str).isin(rebuild_paper_ids)
+    for idx in corrupted.index[rebuild_mask]:
+        corrupted.at[idx, "text_for_embedding"] = _rebuild_embedding_text(corrupted.loc[idx])
+
+    # Re-apply intentional noise after derived fields are synchronized.
+    for paper_id in noise_paper_ids:
+        matching = corrupted.index[corrupted["paper_id"].astype(str).eq(paper_id)]
+        for idx in matching:
+            original = str(corrupted.at[idx, "text_for_embedding"])
+            tokens = original.split()
+            if len(tokens) >= 5:
+                for _ in range(max(1, len(tokens) // 5)):
+                    pos = rng.randint(0, len(tokens) - 1)
+                    tokens[pos] = rng.choice(_NOISE_TOKENS)
+            corrupted.at[idx, "text_for_embedding"] = " ".join(tokens)
 
     # --- 6. Duplicate rows ---
     dup_count = min(2, len(corrupted))
@@ -169,14 +197,11 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "count": dup_count,
             "affected_paper_ids": dup_paper_ids,
             "description": f"Duplicated {dup_count} rows to break uniqueness.",
+            "dataset_impact": f"{dup_count} extra rows break paper_id uniqueness.",
+            "rag_impact": "Duplicate vectors can crowd out distinct evidence in top-k retrieval.",
+            "repair_strategy": "Remove only duplicate copies of the logged paper_ids.",
         }
     )
-
-    # --- 7. Rebuild text_for_embedding for every row where it might be stale ---
-    rebuild_indices = set(blank_indices) | set(noise_indices) | set(trunc_indices) | set(age_indices)
-    for idx in rebuild_indices:
-        if idx in corrupted.index:
-            corrupted.at[idx, "text_for_embedding"] = _rebuild_embedding_text(corrupted.loc[idx])
 
     # Ensure column order matches the clean contract.
     clean_cols = [c for c in df.columns if c in corrupted.columns]

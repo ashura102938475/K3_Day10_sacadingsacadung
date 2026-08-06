@@ -44,7 +44,12 @@ def _token_f1(reference: str, prediction: str) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
-def _judge_answer(settings: Settings, question: str, reference: str, prediction: str) -> JudgeVerdict:
+def _judge_answer(
+    settings: Settings,
+    question: str,
+    reference: str,
+    prediction: str,
+) -> tuple[JudgeVerdict, str]:
     prompt = f"""
 Evaluate the model answer against the reference answer.
 
@@ -59,13 +64,19 @@ Return:
 """.strip()
     try:
         llm = build_llm(settings=settings, temperature=0.0).with_structured_output(JudgeVerdict)
-        return llm.invoke(prompt)
-    except Exception:
+        return llm.invoke(prompt), f"llm:{settings.llm_provider}"
+    except Exception as exc:
         score = 5 if _token_f1(reference, prediction) >= 0.95 else 3 if _token_f1(reference, prediction) >= 0.5 else 1
-        return JudgeVerdict(
-            score=score,
-            correct=score >= 3,
-            reasoning="Fallback heuristic judge used because the LLM evaluator was unavailable.",
+        return (
+            JudgeVerdict(
+                score=score,
+                correct=score >= 3,
+                reasoning=(
+                    "Fallback heuristic judge used because the LLM evaluator was unavailable "
+                    f"({type(exc).__name__})."
+                ),
+            ),
+            "heuristic:token_f1",
         )
 
 
@@ -124,7 +135,9 @@ def evaluate_pipeline(
 
     for item in test_set:
         result = answer_question(item["question"], settings=settings, index=index)
-        judge = _judge_answer(settings, item["question"], item["ground_truth"], result.answer)
+        judge, judge_backend = _judge_answer(
+            settings, item["question"], item["ground_truth"], result.answer
+        )
         retrieval_hit = any(doc_id in item["ground_truth_doc_ids"] for doc_id in result.retrieved_doc_ids)
         answers.append(
             {
@@ -139,6 +152,7 @@ def evaluate_pipeline(
                 "retrieval_hit": retrieval_hit,
                 "token_f1": _token_f1(item["ground_truth"], result.answer),
                 "judge": judge.model_dump(),
+                "judge_backend": judge_backend,
             }
         )
 
@@ -148,6 +162,10 @@ def evaluate_pipeline(
         "mean_token_f1": mean(item["token_f1"] for item in answers),
         "judge_accuracy": mean(1.0 if item["judge"]["correct"] else 0.0 for item in answers),
         "mean_judge_score": mean(item["judge"]["score"] for item in answers),
+        "judge_backends": sorted({item["judge_backend"] for item in answers}),
+        "judge_fallback_samples": sum(
+            item["judge_backend"].startswith("heuristic:") for item in answers
+        ),
     }
     summary["ragas"] = _run_ragas(settings, answers)
 

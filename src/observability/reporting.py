@@ -186,8 +186,10 @@ def generate_corruption_report(
 1. **Corruption impact:** The corruptions that affect ``text_for_embedding`` (blank summary,
    noise injection) and ``age_days`` (aged dates) are expected to degrade retrieval metrics
    the most because they directly harm the embedding quality and freshness signals.
-2. **Repair recovery:** Repair restores the original clean data from the trusted source
-   (raw Crossref records), so all metrics should return to baseline levels. Any residual
-   gap indicates an incomplete repair or an issue in the repair pipeline itself.
+2. **Targeted repair:** Repair uses the corruption log to locate affected ``paper_id`` values.
+   It restores only damaged fields, adds logged missing rows, and removes logged duplicates
+   by pulling trusted values from the good baseline. Unaffected records are not replaced.
+3. **Recovery validation:** Quality, freshness, and evaluation run again after the targeted
+   repair. Any residual gap from baseline indicates an incomplete repair or pipeline issue.
 """
     write_text(report_path, md)

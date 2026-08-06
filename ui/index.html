@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Bảng điều khiển đánh giá chất lượng và retrieval của hệ thống RAG" />
+    <title>QualiTrace AI · Đánh giá chất lượng RAG</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <nav class="topbar">
+      <a class="brand" href="#overview"><span class="brand-mark">Q</span>QualiTrace AI</a>
+      <div class="nav-links" aria-label="Các khu vực dashboard">
+        <a data-nav-view="dashboard" href="./#overview">Tổng quan</a>
+        <a data-nav-view="dashboard" href="./#evaluations">Đánh giá</a>
+        <a data-nav-view="dashboard" href="./#pipeline">Quy trình</a>
+        <a data-nav-view="dashboard" href="./#dataset">Dữ liệu</a>
+        <a data-nav-view="presentation" href="./?view=presentation">Thuyết trình</a>
+      </div>
+      <div class="nav-actions">
+        <label class="global-search">
+          <span aria-hidden="true">⌕</span>
+          <input id="global-search" type="search" placeholder="Tìm câu hỏi…" aria-label="Tìm câu hỏi đánh giá" />
+        </label>
+        <button class="icon-button" id="theme-toggle" aria-label="Đổi giao diện sáng tối">◐</button>
+        <span class="avatar" aria-label="Nguyen Chi Hieu">NH</span>
+      </div>
+    </nav>
+
+    <main>
+      <section class="hero" id="overview">
+        <div>
+          <p class="eyebrow">Không gian đánh giá</p>
+          <h1>Bảng chất lượng dữ liệu RAG</h1>
+          <p class="subtitle">Phân tích chất lượng truy xuất và câu trả lời qua ba trạng thái: dữ liệu gốc, dữ liệu lỗi và dữ liệu đã sửa.</p>
+        </div>
+        <div class="runtime-badges">
+          <span class="runtime-badge"><i class="pulse"></i> Jina · 1024d</span>
+          <span class="runtime-badge">Giám khảo · NVIDIA</span>
+        </div>
+      </section>
+
+      <section class="kpi-grid" aria-label="Tóm tắt sức khỏe dữ liệu">
+        <article class="kpi-card">
+          <div class="kpi-label">Tổng số bản ghi</div>
+          <div class="kpi-value" id="total-records">—</div>
+          <div class="kpi-meta positive" id="record-meta">Kho dữ liệu sạch</div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-label">Chất lượng dữ liệu gốc</div>
+          <div class="kpi-value" id="quality-rate">—</div>
+          <div class="meter"><span id="quality-meter"></span></div>
+        </article>
+        <article class="kpi-card danger-accent">
+          <div class="kpi-label">Tín hiệu dữ liệu lỗi</div>
+          <div class="kpi-value danger" id="corruption-signals">—</div>
+          <div class="kpi-meta danger" id="corruption-meta">Lỗi chất lượng phát hiện được</div>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-label">Mức phục hồi</div>
+          <div class="kpi-value" id="repair-rate">—</div>
+          <div class="kpi-meta positive" id="repair-meta">Các metric đã phục hồi</div>
+        </article>
+      </section>
+
+      <section class="panel" id="evaluations">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Bộ đánh giá 10 câu</p>
+            <h2>Khám phá câu hỏi</h2>
+          </div>
+          <div class="question-controls">
+            <span class="question-index" id="question-index">01 / 10</span>
+            <select id="question-select" aria-label="Chọn câu hỏi đánh giá"></select>
+          </div>
+        </div>
+        <p class="selected-question" id="selected-question">Đang tải artifact đánh giá…</p>
+        <div class="state-grid" id="state-grid" aria-live="polite"></div>
+      </section>
+
+      <section class="comparison-grid">
+        <article class="panel metric-panel">
+          <div class="section-heading compact">
+            <div>
+            <p class="eyebrow">Ảnh hưởng và phục hồi</p>
+              <h2>So sánh chỉ số</h2>
+            </div>
+            <span class="status-chip success">Cùng bộ eval</span>
+          </div>
+          <div id="metric-comparison" class="metric-comparison"></div>
+        </article>
+
+        <article class="panel freshness-panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">SLA dữ liệu</p>
+              <h2>Giám sát độ tươi mới</h2>
+            </div>
+            <span class="status-chip" id="freshness-status">—</span>
+          </div>
+          <div class="freshness-summary">
+            <strong id="freshness-age">—</strong>
+            <span>ngày ngưỡng</span>
+          </div>
+          <dl class="detail-list" id="freshness-details"></dl>
+        </article>
+      </section>
+
+      <section class="panel" id="pipeline">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Khả năng quan sát</p>
+            <h2>Cổng kiểm tra chất lượng</h2>
+          </div>
+          <div class="segmented-control" id="quality-tabs" role="tablist">
+            <button class="active" data-state="baseline">Dữ liệu gốc</button>
+            <button data-state="corrupted">Dữ liệu lỗi</button>
+            <button data-state="repaired">Đã sửa</button>
+          </div>
+        </div>
+        <div class="quality-summary" id="quality-summary"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Kiểm tra</th><th>Chiều chất lượng</th><th>Quan sát</th><th>Kỳ vọng</th><th>Trạng thái</th></tr></thead>
+            <tbody id="quality-table"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="comparison-grid" id="dataset">
+        <article class="panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Thí nghiệm xác định</p>
+              <h2>Nhật ký tạo lỗi</h2>
+            </div>
+            <span class="status-chip danger" id="corruption-count">—</span>
+          </div>
+          <div class="timeline" id="corruption-timeline"></div>
+        </article>
+
+        <article class="panel">
+          <div class="section-heading compact">
+            <div>
+              <p class="eyebrow">Kho dữ liệu Crossref</p>
+              <h2>Mẫu dữ liệu</h2>
+            </div>
+            <span class="status-chip">24 bài báo</span>
+          </div>
+          <div class="paper-list" id="paper-list"></div>
+        </article>
+      </section>
+
+      <section class="panel presentation-panel" id="presentation">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Bài thuyết trình nhóm</p>
+            <h2>Từ dữ liệu thô đến hệ thống RAG có thể quan sát</h2>
+          </div>
+          <button class="presentation-open" id="presentation-fullscreen">Trình chiếu toàn màn hình <span>↗</span></button>
+        </div>
+        <div class="slide-deck" id="slide-deck">
+          <header class="deck-header">
+            <div class="deck-brand"><span class="brand-mark">Q</span><span>QualiTrace AI</span></div>
+            <div class="deck-counter"><span id="slide-current">01</span> / <span id="slide-total">09</span></div>
+          </header>
+          <div class="slides" id="presentation-slides" aria-live="polite"></div>
+          <footer class="deck-footer">
+            <div class="deck-progress"><span id="deck-progress-bar"></span></div>
+            <div class="deck-controls">
+              <button id="slide-prev" aria-label="Trang trình chiếu trước">←</button>
+              <div class="slide-dots" id="slide-dots"></div>
+              <button id="slide-next" aria-label="Trang trình chiếu tiếp theo">→</button>
+            </div>
+          </footer>
+        </div>
+        <div class="speaker-note" id="speaker-note"></div>
+      </section>
+
+      <div class="error-banner" id="error-banner" hidden></div>
+    </main>
+
+    <button class="chat-launcher" id="chat-launcher" aria-label="Mở trợ lý QualiTrace" aria-expanded="false">
+      <span>✦</span>
+      <span>Hỏi kho dữ liệu</span>
+    </button>
+    <aside class="chat-drawer" id="chat-drawer" aria-label="QualiTrace Assistant" aria-hidden="true">
+      <button class="chat-resize-handle" id="chat-resize-handle" aria-label="Kéo để đổi kích thước khung chat" title="Kéo để đổi kích thước · Nhấp đúp để đặt lại">
+        <span></span>
+      </button>
+      <header class="chat-header">
+        <div>
+          <p class="eyebrow">Hội thoại RAG có căn cứ</p>
+          <h2>QualiTrace Assistant</h2>
+        </div>
+        <button class="icon-button" id="chat-close" aria-label="Đóng trợ lý">×</button>
+      </header>
+      <div class="chat-state-selector" id="chat-state-selector" role="tablist" aria-label="Chọn trạng thái dữ liệu">
+        <button class="active" data-chat-state="baseline">Dữ liệu gốc</button>
+        <button data-chat-state="corrupted">Dữ liệu lỗi</button>
+        <button data-chat-state="repaired">Đã sửa</button>
+      </div>
+      <p class="chat-state-description" id="chat-state-description" data-state="baseline">
+        Truy vấn index dữ liệu sạch trước khi gây lỗi.
+      </p>
+      <div class="chat-status"><i class="pulse"></i><span id="chat-status-text">Đang kết nối API retrieval…</span></div>
+      <div class="chat-messages" id="chat-messages" aria-live="polite">
+        <article class="chat-message assistant">
+          <div class="message-role">QualiTrace</div>
+          <p>Hãy hỏi tôi về 24 bài báo trong kho Crossref. Tôi sẽ truy xuất bằng chứng và hiển thị các nguồn hỗ trợ.</p>
+        </article>
+      </div>
+      <form class="chat-form" id="chat-form">
+        <textarea id="chat-input" rows="2" maxlength="2000" placeholder="Hỏi về bài báo, tác giả, phương pháp hoặc kết quả…" required></textarea>
+        <div class="chat-form-footer">
+          <span>Enter để gửi · Shift+Enter để xuống dòng</span>
+          <button type="submit" id="chat-submit">Gửi <span>↗</span></button>
+        </div>
+      </form>
+    </aside>
+    <div class="chat-backdrop" id="chat-backdrop"></div>
+
+    <footer>
+      <span>QualiTrace AI · Bài thực hành quan sát chất lượng dữ liệu ngày 10</span>
+      <span id="artifact-time">Ảnh chụp artifact</span>
+    </footer>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
