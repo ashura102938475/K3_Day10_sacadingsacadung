@@ -3,9 +3,9 @@
   "embedding_provider": "jina",
   "embedding_model": "jina-embeddings-v5-text-small",
   "embedding_dimension": 1024,
-  "generated_at_utc": "2026-08-06T04:29:36.664134+00:00",
+  "generated_at_utc": "2026-08-06T04:32:24.714031+00:00",
   "persist_path": "data/chroma",
-  "collection_name": "papers-baseline",
+  "collection_name": "papers-repaired",
   "documents": [
     {
       "record_id": "10.2118/234689-pa::0",

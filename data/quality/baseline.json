@@ -1,0 +1,99 @@
+{
+  "summary": {
+    "report_name": "baseline",
+    "total_checks": 11,
+    "passed": 11,
+    "failed": 0,
+    "all_passed": true
+  },
+  "checks": [
+    {
+      "check": "row_count",
+      "passed": true,
+      "quality_dimension": "Completeness",
+      "observed": "24 rows",
+      "expected": ">= 1 row(s)",
+      "details": ""
+    },
+    {
+      "check": "paper_id_not_null",
+      "passed": true,
+      "quality_dimension": "Completeness",
+      "observed": "0 null(s)",
+      "expected": "0 nulls",
+      "details": "paper_id null count = 0"
+    },
+    {
+      "check": "paper_id_unique",
+      "passed": true,
+      "quality_dimension": "Uniqueness",
+      "observed": "0 duplicate(s)",
+      "expected": "0 duplicates",
+      "details": "paper_id duplicate count = 0"
+    },
+    {
+      "check": "title_not_blank",
+      "passed": true,
+      "quality_dimension": "Completeness",
+      "observed": "0 blank(s)",
+      "expected": "0 blanks",
+      "details": ""
+    },
+    {
+      "check": "title_not_truncated",
+      "passed": true,
+      "quality_dimension": "Validity",
+      "observed": "0 truncated title(s)",
+      "expected": "0 truncated titles",
+      "details": ""
+    },
+    {
+      "check": "summary_min_length",
+      "passed": true,
+      "quality_dimension": "Completeness",
+      "observed": "0 row(s) with summary < 100 chars",
+      "expected": "0 rows",
+      "details": ""
+    },
+    {
+      "check": "summary_chars_matches_summary",
+      "passed": true,
+      "quality_dimension": "Validity",
+      "observed": "0 mismatch(es)",
+      "expected": "0 mismatches",
+      "details": ""
+    },
+    {
+      "check": "age_days_non_negative",
+      "passed": true,
+      "quality_dimension": "Validity",
+      "observed": "0 row(s) with negative age_days",
+      "expected": "0 rows",
+      "details": ""
+    },
+    {
+      "check": "text_for_embedding_not_empty",
+      "passed": true,
+      "quality_dimension": "Completeness",
+      "observed": "0 empty(s)",
+      "expected": "0 empty",
+      "details": ""
+    },
+    {
+      "check": "text_for_embedding_matches_source_fields",
+      "passed": true,
+      "quality_dimension": "Consistency",
+      "observed": "0 mismatch(es)",
+      "expected": "0 mismatches excluding intentional noise",
+      "details": ""
+    },
+    {
+      "check": "text_for_embedding_has_no_noise_tokens",
+      "passed": true,
+      "quality_dimension": "Validity",
+      "observed": "0 noisy row(s)",
+      "expected": "0 noisy rows",
+      "details": ""
+    }
+  ]
+}

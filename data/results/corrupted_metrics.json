@@ -1,0 +1,14 @@
+{
+  "samples": 10,
+  "retrieval_hit_rate": 0.8,
+  "mean_token_f1": 0.8326530612244898,
+  "judge_accuracy": 0.8,
+  "mean_judge_score": 4.3,
+  "judge_backends": [
+    "llm:nvidia"
+  ],
+  "judge_fallback_samples": 0,
+  "ragas": {
+    "skipped": "Set RUN_RAGAS=1 to enable the slower Ragas pass."
+  }
+}
