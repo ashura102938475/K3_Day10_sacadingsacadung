@@ -60,6 +60,9 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "count": drop_count,
             "affected_paper_ids": dropped_paper_ids,
             "description": f"Dropped {drop_count} latest records to simulate freshness loss.",
+            "dataset_impact": f"{drop_count} records missing; newest publication coverage decreases.",
+            "rag_impact": "Relevant documents can disappear from retrieval results and freshness declines.",
+            "repair_strategy": "Add only the missing paper_ids from the good baseline.",
         }
     )
 
@@ -77,6 +80,9 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "count": blank_count,
             "affected_paper_ids": blank_paper_ids,
             "description": f"Set summary to empty string on {blank_count} rows.",
+            "dataset_impact": f"{blank_count} summaries and derived summary_chars become incomplete.",
+            "rag_impact": "Document semantics weaken because embedding text loses abstract content.",
+            "repair_strategy": "Restore summary, summary_chars, and text_for_embedding for logged paper_ids.",
         }
     )
 
@@ -95,6 +101,9 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "count": noise_count,
             "affected_paper_ids": noise_paper_ids,
             "description": f"Injected noise tokens into text_for_embedding on {noise_count} rows.",
+            "dataset_impact": f"{noise_count} embedding texts no longer match their source fields.",
+            "rag_impact": "Vector representations drift and ranking relevance can decrease.",
+            "repair_strategy": "Restore only text_for_embedding from the good baseline.",
         }
     )
 
@@ -117,6 +126,9 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "count": trunc_count,
             "affected_paper_ids": trunc_paper_ids,
             "description": f"Truncated titles to ~1/3 length on {trunc_count} rows.",
+            "dataset_impact": f"{trunc_count} titles lose identifying information.",
+            "rag_impact": "Title-based queries and generated citations become less reliable.",
+            "repair_strategy": "Restore title and its derived text_for_embedding.",
         }
     )
 
@@ -145,6 +157,9 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "count": age_count,
             "affected_paper_ids": age_paper_ids,
             "description": f"Aged published dates by -365 days on {age_count} rows.",
+            "dataset_impact": f"{age_count} publication dates and age_days values become stale.",
+            "rag_impact": "Freshness monitoring fails and recent-document ranking can be misleading.",
+            "repair_strategy": "Restore published and age_days for logged paper_ids.",
         }
     )
 
@@ -182,6 +197,9 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "count": dup_count,
             "affected_paper_ids": dup_paper_ids,
             "description": f"Duplicated {dup_count} rows to break uniqueness.",
+            "dataset_impact": f"{dup_count} extra rows break paper_id uniqueness.",
+            "rag_impact": "Duplicate vectors can crowd out distinct evidence in top-k retrieval.",
+            "repair_strategy": "Remove only duplicate copies of the logged paper_ids.",
         }
     )
 

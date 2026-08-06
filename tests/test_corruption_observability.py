@@ -8,8 +8,8 @@ from ingestion.cleaning import build_clean_dataframe
 from ingestion.corruption import corrupt_clean_dataframe
 from ingestion.crossref import PaperRecord
 from observability.quality import run_data_quality_checks
-from pipelines.corruption_flow import _repair_from_raw
-from core.utils import write_json
+from ingestion.repair import repair_corrupted_dataframe
+from core.utils import read_json
 
 
 def _records(count: int = 12) -> list[PaperRecord]:
@@ -56,19 +56,37 @@ def test_corruption_is_detected_without_accidental_embedding_mismatches(tmp_path
     assert checks["text_for_embedding_matches_source_fields"]["passed"] is True
 
 
-def test_repair_restores_records_dropped_by_corruption(tmp_path):
-    settings = load_settings()
-    raw_path = tmp_path / "crossref_records.json"
-    write_json(raw_path, [record.__dict__ for record in _records()])
-    settings = replace(
-        settings,
-        paths=replace(settings.paths, raw_records_json=raw_path),
-    )
+def test_repair_targets_only_logged_corruptions(tmp_path):
     clean = build_clean_dataframe(_records(), datetime(2026, 8, 6, tzinfo=UTC))
-    corrupted = corrupt_clean_dataframe(clean, tmp_path / "corruption_log.json")
+    log_path = tmp_path / "corruption_log.json"
+    corrupted = corrupt_clean_dataframe(clean, log_path)
 
-    repaired = _repair_from_raw(settings, corrupted)
+    repaired, repair_log = repair_corrupted_dataframe(corrupted, clean, read_json(log_path))
 
     assert len(repaired) == len(clean)
     assert repaired["paper_id"].is_unique
     assert set(repaired["paper_id"]) == set(clean["paper_id"])
+    assert repaired.to_dict(orient="records") == clean.to_dict(orient="records")
+    assert repair_log["targeted_unique_records"] < len(clean)
+    assert repair_log["unaffected_reference_records"] > 0
+
+
+def test_repair_preserves_unlogged_fields_on_unaffected_records(tmp_path):
+    clean = build_clean_dataframe(_records(), datetime(2026, 8, 6, tzinfo=UTC))
+    log_path = tmp_path / "corruption_log.json"
+    corrupted = corrupt_clean_dataframe(clean, log_path)
+    corruption_log = read_json(log_path)
+    targeted_ids = {
+        str(paper_id)
+        for entry in corruption_log["entries"]
+        for paper_id in entry["affected_paper_ids"]
+    }
+    unaffected_id = next(
+        paper_id for paper_id in corrupted["paper_id"] if paper_id not in targeted_ids
+    )
+    corrupted.loc[corrupted["paper_id"].eq(unaffected_id), "comment"] = "keep this annotation"
+
+    repaired, _ = repair_corrupted_dataframe(corrupted, clean, corruption_log)
+
+    repaired_comment = repaired.loc[repaired["paper_id"].eq(unaffected_id), "comment"].iloc[0]
+    assert repaired_comment == "keep this annotation"

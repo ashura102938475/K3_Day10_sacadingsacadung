@@ -3,35 +3,22 @@ from __future__ import annotations
 import pandas as pd
 
 from core.config import Paths, Settings, load_settings
-from core.utils import now_utc, read_json, write_csv, write_json
+from core.utils import read_json, write_csv, write_json
 from evaluation.metrics import evaluate_pipeline
-from ingestion.cleaning import build_clean_dataframe
 from ingestion.corruption import corrupt_clean_dataframe
-from ingestion.crossref import load_raw_records
+from ingestion.repair import repair_corrupted_dataframe
 from observability.quality import build_freshness_report, run_data_quality_checks
 from observability.reporting import generate_corruption_report
 from retrieval.index import LocalEmbeddingIndex
 
 
 def _load_clean_df(settings: Settings) -> pd.DataFrame:
-    """Load the existing clean CSV or rebuild from raw records."""
-    if settings.paths.clean_csv.exists():
-        return pd.read_csv(settings.paths.clean_csv)
-    records = load_raw_records(settings.paths.raw_records_json)
-    return build_clean_dataframe(records, now_utc())
-
-
-def _repair_from_raw(settings: Settings, corrupted: pd.DataFrame) -> pd.DataFrame:
-    """Repair the corrupted DataFrame by restoring data from raw records.
-
-    The repair strategy:
-    - Reload trusted raw records.
-    - Rebuild the clean DataFrame from scratch.
-    - Restore every valid source record, including records dropped by corruption.
-    """
-    records = load_raw_records(settings.paths.raw_records_json)
-    clean_df = build_clean_dataframe(records, now_utc())
-    return clean_df.reset_index(drop=True)
+    """Load the committed baseline used as the trusted good-data reference."""
+    if not settings.paths.clean_json.exists():
+        raise RuntimeError(
+            f"Missing good baseline data at {settings.paths.clean_json}. Run pipelines.phase1 first."
+        )
+    return pd.DataFrame(read_json(settings.paths.clean_json))
 
 
 def _evaluate_state(
@@ -65,7 +52,7 @@ def main() -> None:
     2. Apply corruptions and save corrupted artifacts.
     3. Rebuild index over corrupted data and evaluate.
     4. Run quality & freshness checks on corrupted data.
-    5. Repair corrupted data from raw source records.
+    5. Repair only logged corruptions by pulling values from good baseline data.
     6. Evaluate repaired data.
     7. Run quality & freshness checks on repaired data.
     8. Write comparison report.
@@ -109,9 +96,14 @@ def main() -> None:
     )
 
     # ---- 5. Repair ---------------------------------------------------------
-    repaired_df = _repair_from_raw(settings, corrupted_df)
+    repaired_df, repair_log = repair_corrupted_dataframe(
+        corrupted=corrupted_df,
+        good=clean_df,
+        corruption_log=read_json(paths.corruption_log),
+    )
     write_csv(repaired_df, paths.repaired_clean_csv)
     write_json(paths.repaired_clean_json, repaired_df.to_dict(orient="records"))
+    write_json(paths.repair_log, repair_log)
     print(f"Repaired data: {len(repaired_df)} rows")
 
     # ---- 6. Evaluate repaired ----------------------------------------------
@@ -149,6 +141,7 @@ def main() -> None:
     print(f"   Corrupted data:  {paths.corrupted_clean_csv}")
     print(f"   Corrupted metrics: {paths.corrupted_metrics}")
     print(f"   Repaired metrics:  {paths.repaired_metrics}")
+    print(f"   Repair log:        {paths.repair_log}")
     print(f"   Report:            {paths.comparison_report}")
 
 

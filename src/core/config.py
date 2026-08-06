@@ -35,6 +35,7 @@ class Paths:
     repaired_freshness_report: Path
     baseline_report: Path
     corruption_log: Path
+    repair_log: Path
     corrupted_metrics: Path
     corrupted_answers: Path
     repaired_metrics: Path
@@ -109,6 +110,7 @@ def load_settings(project_dir: Path | None = None) -> Settings:
         repaired_freshness_report=data_dir / "quality" / "freshness_repaired.json",
         baseline_report=data_dir / "reports" / "phase1_report.md",
         corruption_log=data_dir / "results" / "corruption_log.json",
+        repair_log=data_dir / "results" / "repair_log.json",
         corrupted_metrics=data_dir / "results" / "corrupted_metrics.json",
         corrupted_answers=data_dir / "results" / "corrupted_answers.json",
         repaired_metrics=data_dir / "results" / "repaired_metrics.json",
