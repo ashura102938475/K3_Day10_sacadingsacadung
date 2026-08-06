@@ -89,13 +89,6 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
     noise_paper_ids: list[str] = []
     for idx in noise_indices:
         noise_paper_ids.append(str(corrupted.at[idx, "paper_id"]))
-        original = str(corrupted.at[idx, "text_for_embedding"])
-        tokens = original.split()
-        if len(tokens) >= 5:
-            for _ in range(max(1, len(tokens) // 5)):
-                pos = rng.randint(0, len(tokens) - 1)
-                tokens[pos] = rng.choice(_NOISE_TOKENS)
-        corrupted.at[idx, "text_for_embedding"] = " ".join(tokens)
     log_entries.append(
         {
             "corruption": "inject_noise",
@@ -155,6 +148,26 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
         }
     )
 
+    # Rebuild derived embedding text by stable paper_id before adding
+    # intentional embedding-only noise and duplicates. DataFrame indexes are
+    # not stable after dropping/concatenating rows.
+    rebuild_paper_ids = set(blank_paper_ids) | set(trunc_paper_ids)
+    rebuild_mask = corrupted["paper_id"].astype(str).isin(rebuild_paper_ids)
+    for idx in corrupted.index[rebuild_mask]:
+        corrupted.at[idx, "text_for_embedding"] = _rebuild_embedding_text(corrupted.loc[idx])
+
+    # Re-apply intentional noise after derived fields are synchronized.
+    for paper_id in noise_paper_ids:
+        matching = corrupted.index[corrupted["paper_id"].astype(str).eq(paper_id)]
+        for idx in matching:
+            original = str(corrupted.at[idx, "text_for_embedding"])
+            tokens = original.split()
+            if len(tokens) >= 5:
+                for _ in range(max(1, len(tokens) // 5)):
+                    pos = rng.randint(0, len(tokens) - 1)
+                    tokens[pos] = rng.choice(_NOISE_TOKENS)
+            corrupted.at[idx, "text_for_embedding"] = " ".join(tokens)
+
     # --- 6. Duplicate rows ---
     dup_count = min(2, len(corrupted))
     dup_indices = rng.sample(list(corrupted.index), dup_count)
@@ -171,12 +184,6 @@ def corrupt_clean_dataframe(df: pd.DataFrame, output_log_path: str | Path) -> pd
             "description": f"Duplicated {dup_count} rows to break uniqueness.",
         }
     )
-
-    # --- 7. Rebuild text_for_embedding for every row where it might be stale ---
-    rebuild_indices = set(blank_indices) | set(noise_indices) | set(trunc_indices) | set(age_indices)
-    for idx in rebuild_indices:
-        if idx in corrupted.index:
-            corrupted.at[idx, "text_for_embedding"] = _rebuild_embedding_text(corrupted.loc[idx])
 
     # Ensure column order matches the clean contract.
     clean_cols = [c for c in df.columns if c in corrupted.columns]

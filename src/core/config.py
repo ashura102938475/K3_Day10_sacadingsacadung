@@ -31,6 +31,8 @@ class Paths:
     quality_dir: Path
     gx_dir: Path
     freshness_report: Path
+    corrupted_freshness_report: Path
+    repaired_freshness_report: Path
     baseline_report: Path
     corruption_log: Path
     corrupted_metrics: Path
@@ -103,6 +105,8 @@ def load_settings(project_dir: Path | None = None) -> Settings:
         quality_dir=data_dir / "quality",
         gx_dir=data_dir / "quality" / "gx",
         freshness_report=data_dir / "quality" / "freshness_report.json",
+        corrupted_freshness_report=data_dir / "quality" / "freshness_corrupted.json",
+        repaired_freshness_report=data_dir / "quality" / "freshness_repaired.json",
         baseline_report=data_dir / "reports" / "phase1_report.md",
         corruption_log=data_dir / "results" / "corruption_log.json",
         corrupted_metrics=data_dir / "results" / "corrupted_metrics.json",
@@ -110,6 +114,13 @@ def load_settings(project_dir: Path | None = None) -> Settings:
         repaired_metrics=data_dir / "results" / "repaired_metrics.json",
         repaired_answers=data_dir / "results" / "repaired_answers.json",
         comparison_report=data_dir / "reports" / "corruption_report.md",
+    )
+
+    embedding_provider = os.getenv("EMBEDDING_PROVIDER", "jina").strip().lower()
+    default_embedding_model = (
+        "jina-embeddings-v5-text-small"
+        if embedding_provider == "jina"
+        else "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
 
     return Settings(
@@ -125,12 +136,9 @@ def load_settings(project_dir: Path | None = None) -> Settings:
         custom_llm_base_url=os.getenv("CUSTOM_LLM_BASE_URL"),
         nvidia_api_key=os.getenv("NVIDIA_API_KEY"),
         nvidia_base_url=os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
-        embedding_provider=os.getenv("EMBEDDING_PROVIDER", "local"),
+        embedding_provider=embedding_provider,
         jina_api_key=os.getenv("JINA_API_KEY"),
-        embedding_model=os.getenv(
-            "EMBEDDING_MODEL",
-            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-        ),
+        embedding_model=os.getenv("EMBEDDING_MODEL", default_embedding_model),
         baseline_collection_name="papers-baseline",
         corrupted_collection_name="papers-corrupted",
         repaired_collection_name="papers-repaired",
@@ -186,3 +194,14 @@ def require_llm_credentials(settings: Settings) -> None:
     raise RuntimeError(
         "Unsupported LLM_PROVIDER. Expected one of: openai, gemini, anthropic, openrouter, ollama, custom, nvidia."
     )
+
+
+def require_embedding_credentials(settings: Settings) -> None:
+    provider = settings.embedding_provider.strip().lower()
+    if provider == "jina":
+        if settings.jina_api_key:
+            return
+        raise RuntimeError("JINA_API_KEY is required when EMBEDDING_PROVIDER=jina.")
+    if provider == "local":
+        return
+    raise RuntimeError("Unsupported EMBEDDING_PROVIDER. Expected one of: jina, local.")

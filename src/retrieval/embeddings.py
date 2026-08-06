@@ -4,7 +4,7 @@ from functools import lru_cache
 
 from langchain_core.embeddings import Embeddings
 
-from core.config import Settings
+from core.config import Settings, require_embedding_credentials
 
 
 class MiniLMEmbeddings(Embeddings):
@@ -41,7 +41,8 @@ def create_embeddings(settings: Settings) -> Embeddings:
     - If ``EMBEDDING_PROVIDER`` is ``jina``, uses the Jina AI REST API.
     - Otherwise falls back to the local SentenceTransformer model.
     """
-    provider = settings.embedding_provider
+    provider = settings.embedding_provider.strip().lower()
+    require_embedding_credentials(settings)
 
     if provider == "jina":
         from retrieval.jina_embeddings import JinaEmbeddings  # noqa: PLC0415
@@ -51,5 +52,4 @@ def create_embeddings(settings: Settings) -> Embeddings:
             model_name=settings.embedding_model,
         )
 
-    # Default: local model
     return MiniLMEmbeddings(model_name=settings.embedding_model)

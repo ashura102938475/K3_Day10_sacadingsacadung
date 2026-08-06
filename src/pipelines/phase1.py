@@ -83,10 +83,14 @@ def main() -> None:
         freshness=freshness,
     )
 
-    print(f"✅ Baseline pipeline complete.")
+    print("Baseline pipeline complete.")
     print(f"   Clean records:  {len(clean_df)}")
     print(f"   Metrics:        {paths.baseline_metrics}")
     print(f"   Answers:        {paths.baseline_answers}")
     print(f"   Quality:        {paths.quality_dir}")
     print(f"   Freshness:      {paths.freshness_report}")
     print(f"   Report:         {paths.baseline_report}")
+
+
+if __name__ == "__main__":
+    main()

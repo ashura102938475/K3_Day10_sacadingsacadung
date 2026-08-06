@@ -27,33 +27,24 @@ def _repair_from_raw(settings: Settings, corrupted: pd.DataFrame) -> pd.DataFram
     The repair strategy:
     - Reload trusted raw records.
     - Rebuild the clean DataFrame from scratch.
-    - Keep only the paper_ids that are present in the corrupted set
-      (so the row count stays comparable).
+    - Restore every valid source record, including records dropped by corruption.
     """
     records = load_raw_records(settings.paths.raw_records_json)
     clean_df = build_clean_dataframe(records, now_utc())
-    corrupted_ids = set(corrupted["paper_id"].astype(str).str.lower())
-    repaired = clean_df[clean_df["paper_id"].str.lower().isin(corrupted_ids)].copy()
-    if repaired.empty:
-        # Fallback: return a fresh clean build.
-        return clean_df
-    return repaired.reset_index(drop=True)
+    return clean_df.reset_index(drop=True)
 
 
 def _evaluate_state(
     settings: Settings,
     df: pd.DataFrame,
-    collection_name: str,
+    embeddings_path,
     metrics_path,
     answers_path,
 ) -> dict[str, object]:
-    index = LocalEmbeddingIndex.build(df=df, settings=settings)
-    # Override collection name for isolation.
-    index = LocalEmbeddingIndex(
+    index = LocalEmbeddingIndex.build(
+        df=df,
         settings=settings,
-        collection_name=collection_name,
-        documents=index.documents,
-        persist_path=settings.paths.chroma_dir,
+        embeddings_output_path=embeddings_path,
     )
     bundle = evaluate_pipeline(
         settings=settings,
@@ -82,6 +73,15 @@ def main() -> None:
     settings = load_settings()
     paths: Paths = settings.paths
 
+    if not paths.baseline_metrics.exists():
+        raise RuntimeError(
+            f"Missing baseline metrics at {paths.baseline_metrics}. Run pipelines.phase1 first."
+        )
+    if not paths.eval_testset.exists():
+        raise RuntimeError(
+            f"Missing evaluation test set at {paths.eval_testset}. Run pipelines.phase1 first."
+        )
+
     # ---- 1. Load clean data ------------------------------------------------
     clean_df = _load_clean_df(settings)
     print(f"Loaded clean data: {len(clean_df)} rows")
@@ -97,7 +97,7 @@ def main() -> None:
     corrupted_summary = _evaluate_state(
         settings,
         corrupted_df,
-        settings.corrupted_collection_name,
+        paths.corrupted_embeddings_json,
         paths.corrupted_metrics,
         paths.corrupted_answers,
     )
@@ -105,7 +105,7 @@ def main() -> None:
     # ---- 4. Quality & freshness (corrupted) --------------------------------
     corrupted_quality = run_data_quality_checks(corrupted_df, settings, "corrupted")
     corrupted_freshness = build_freshness_report(
-        corrupted_df, settings, paths.freshness_report
+        corrupted_df, settings, paths.corrupted_freshness_report
     )
 
     # ---- 5. Repair ---------------------------------------------------------
@@ -119,7 +119,7 @@ def main() -> None:
     repaired_summary = _evaluate_state(
         settings,
         repaired_df,
-        settings.repaired_collection_name,
+        paths.repaired_embeddings_json,
         paths.repaired_metrics,
         paths.repaired_answers,
     )
@@ -127,15 +127,11 @@ def main() -> None:
     # ---- 7. Quality & freshness (repaired) ---------------------------------
     repaired_quality = run_data_quality_checks(repaired_df, settings, "repaired")
     repaired_freshness = build_freshness_report(
-        repaired_df, settings, paths.freshness_report
+        repaired_df, settings, paths.repaired_freshness_report
     )
 
     # ---- 8. Load baseline metrics for comparison ---------------------------
-    baseline_metrics = (
-        read_json(paths.baseline_metrics)
-        if paths.baseline_metrics.exists()
-        else corrupted_summary
-    )
+    baseline_metrics = read_json(paths.baseline_metrics)
 
     # ---- 9. Comparison report ----------------------------------------------
     generate_corruption_report(
@@ -149,8 +145,12 @@ def main() -> None:
         repaired_freshness=repaired_freshness,
     )
 
-    print(f"✅ Corruption flow complete.")
+    print("Corruption flow complete.")
     print(f"   Corrupted data:  {paths.corrupted_clean_csv}")
     print(f"   Corrupted metrics: {paths.corrupted_metrics}")
     print(f"   Repaired metrics:  {paths.repaired_metrics}")
     print(f"   Report:            {paths.comparison_report}")
+
+
+if __name__ == "__main__":
+    main()
