@@ -11,12 +11,12 @@
 
 ### Thành viên và phân công
 
-| STT | Họ và tên | MSSV | Vai trò chính | Module/deliverable sở hữu |
-| --: | --- | --- | --- | --- |
-| 1 | Nguyễn Anh Trà | 2A202601735 | Upstream Data Owner | `crossref.py` ✅, `cleaning.py` ✅, `corruption.py` 🔧 |
-| 2 | Nguyễn Chí Hiếu | 2A202601931 | Downstream Pipeline & Eval Owner | `testset.py` ✅, `embeddings.py` ✅, `index.py` ✅, `agent.py` ✅, `qa.py` ✅, `quality.py` 🔧, `reporting.py` 🔧, `phase1.py` 🔧, `corruption_flow.py` 🔧 |
+| STT | Họ và tên | MSSV | Vai trò chính | Đã implement | Đang/cần implement |
+| --: | --- | --- | --- | --- | --- |
+| 1 | Nguyễn Anh Trà | 2A202601735 | Corruption Owner | — | `corruption.py` |
+| 2 | Nguyễn Chí Hiếu | 2A202601931 | Ingestion, Cleaning, Retrieval, Eval, Pipeline Owner | `crossref.py`, `cleaning.py`, `testset.py`, `embeddings.py`, `index.py`, `llm.py`, `agent.py`, `qa.py`, `utils.py` | `quality.py`, `reporting.py`, `phase1.py`, `corruption_flow.py` |
 
-> ✅ = đã implement | 🔧 = đang/cần implement
+> **Ghi chú:** Hiếu đã hoàn thành toàn bộ ingestion, cleaning, embedding, index, và evaluation baseline. Trà phụ trách module corruption. Các module còn lại do Hiếu tiếp tục.
 
 ## 2. Tóm tắt kết quả
 

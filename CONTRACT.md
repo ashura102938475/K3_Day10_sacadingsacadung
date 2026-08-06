@@ -10,14 +10,13 @@
 
 ## 1. Phân công (2 thành viên)
 
-| # | Vai trò | Module sở hữu | Trạng thái |
-|:--|---------|---------------|:----------:|
-| 1 | **Nguyễn Anh Trà** — Upstream Data Owner | `crossref.py`, `cleaning.py`, `corruption.py` | 🔧 `corruption.py` còn TODO |
-| 2 | **Nguyễn Chí Hiếu** — Downstream Pipeline & Eval Owner | `testset.py`, `quality.py`, `reporting.py`, `phase1.py`, `corruption_flow.py` | ⚠️ `quality.py`, `reporting.py`, `phase1.py`, `corruption_flow.py` còn TODO |
+| # | Thành viên | MSSV | Vai trò | Đã implement | Đang/cần implement |
+|:--|-----------|------|---------|-------------|-------------------|
+| 1 | **Nguyễn Anh Trà** | 2A202601735 | Corruption Owner | — | `corruption.py` |
+| 2 | **Nguyễn Chí Hiếu** | 2A202601931 | Ingestion, Retrieval, Eval, Pipeline Owner | `crossref.py`, `cleaning.py`, `testset.py`, `embeddings.py`, `index.py`, `llm.py`, `agent.py`, `qa.py`, `utils.py` | `quality.py`, `reporting.py`, `phase1.py`, `corruption_flow.py` |
 
-> **Ghi chú:** Hiếu đã implement xong `crossref.py`, `cleaning.py`, `testset.py`, `embeddings.py`,
-> `index.py`, `llm.py`, `agent.py`, `qa.py`, `utils.py` và đã generate toàn bộ data artifacts
-> cho baseline (raw, clean, embeddings, chroma, eval set).
+> **Ghi chú:** Hiếu đã hoàn thành baseline (ingestion → cleaning → embedding → index → eval set) trước.
+> Trà chỉ cần tập trung vào `corruption.py`. Các module pipeline và observability còn lại do Hiếu.
 
 ---
 
@@ -208,11 +207,11 @@ Title: {title} | Authors: {authors_joined} | Summary: {summary}
 
 | Module | Owner | Mô tả |
 |--------|:-----:|-------|
-| `corruption.py` | M1 (Trà) | Mô phỏng các dạng data corruption trên clean data |
-| `quality.py` | M2 (Hiếu) | Great Expectations quality checks + freshness report |
-| `reporting.py` | M2 (Hiếu) | Markdown report cho baseline + comparison |
-| `phase1.py` | M2 (Hiếu) | Pipeline baseline end-to-end |
-| `corruption_flow.py` | M2 (Hiếu) | Pipeline corrupt → eval → repair → compare |
+| `corruption.py` | **Trà** | Mô phỏng các dạng data corruption trên clean data — **đây là việc DUY NHẤT của bạn** |
+| `quality.py` | Hiếu | Great Expectations quality checks + freshness report |
+| `reporting.py` | Hiếu | Markdown report cho baseline + comparison |
+| `phase1.py` | Hiếu | Pipeline baseline end-to-end |
+| `corruption_flow.py` | Hiếu | Pipeline corrupt → eval → repair → compare |
 
 ---
 
